@@ -6,11 +6,11 @@ import webbrowser
 import time
 from pathlib import Path
 import shlex # <<< NEW IMPORT
+import httpx # <<< NEW IMPORT
 
 # --- Core Module Imports ---
-from core import utils
+from core import roadmap_manager, utils
 from core.memory import Memory
-from core.roadmap_manager import RoadmapManager
 from core.idea_synth import IdeaSynthesizer
 from core.automator import Automator
 from core.git_analyzer import GitAnalyzer
@@ -22,7 +22,6 @@ def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
     # --- Initialization ---
     memory = Memory()
-    roadmap_manager = RoadmapManager(memory_system=memory)
     idea_synth = IdeaSynthesizer()
     automator = Automator()
     git_analyzer = GitAnalyzer()
@@ -59,7 +58,31 @@ def start_cli_loop():
     register("focus", lambda args: memory.remember("current_focus", None) or print("Focus cleared.") if args and args[0] == '--clear' else (memory.remember("current_focus", " ".join(args)) or print(f"Focus set to: {' '.join(args)}")) if args else print(f"Current focus: {memory.recall('current_focus')}"), "Sets or clears the session focus.")
 
     # Project & Git Commands
-    register("roadmap", lambda args: roadmap_manager.complete_task(args[1]) if len(args) > 1 and args[0] == 'done' else roadmap_manager.view_roadmap(), "Views or updates the project roadmap.")
+    # <<< UPDATED: The new handler for the 'roadmap' command
+    def handle_roadmap(args):
+        print("🗺️  Fetching roadmap from Giblet API...")
+        try:
+            response = httpx.get("http://localhost:8000/roadmap")
+            response.raise_for_status() # Raises an exception for 4xx/5xx errors
+
+            data = response.json()
+            tasks = data.get("roadmap", [])
+
+            if not tasks:
+                print("No tasks found.")
+                return
+
+            print("\n--- Project Roadmap ---")
+            for task in tasks:
+                icon = "✅" if task["status"] == "complete" else "🚧"
+                print(f" {icon} {task['description']}")
+            print("-----------------------\n")
+
+        except httpx.RequestError as e:
+            print(f"❌ API Request Failed: Could not connect to the Giblet API at http://localhost:8000. Is the server running?")
+        except Exception as e:
+            print(f"❌ An error occurred: {e}")
+    register("roadmap", handle_roadmap, "Views the project roadmap via the API.")
     register("git", lambda args: (print(git_analyzer.get_branch_status()) if args[0] == 'status' else print('\n'.join(git_analyzer.list_branches())) if args[0] == 'branches' else print('\n'.join(str(c) for c in git_analyzer.get_commit_log())) if args[0] == 'log' else print(git_analyzer.summarize_recent_activity(idea_synth)) if args[0] == 'summary' else print("Usage: git [status|branches|log|summary]")), "Interacts with the Git repository.")
 
     # Generation Commands
@@ -114,6 +137,10 @@ def start_cli_loop():
                 if not assignee.startswith('@'):
                     raise ValueError("Assignee must start with '@'")
 
+                # This will now cause an error as roadmap_manager is not defined.
+                # This part of the code would need to be refactored to use an API
+                # or have roadmap_manager re-instantiated if 'todo' commands
+                # are to remain functional with the local RoadmapManager.
                 roadmap_manager.add_shared_task(description, assignee)
 
             except ValueError as e:

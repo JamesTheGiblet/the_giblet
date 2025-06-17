@@ -1,9 +1,11 @@
+fastapi
 google-generativeai
+GitPython
+httpx
+langchain
+langchain-ollama
 python-dotenv
 pytest
-langchain
-langchain_community
 redis
 streamlit
-fastapi
 uvicorn[standard]
