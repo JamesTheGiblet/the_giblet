@@ -2,10 +2,14 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
+from core.user_profile import UserProfile # Import UserProfile
+from core.memory import Memory # Import Memory
 
 class CodeGenerator:
-    def __init__(self):
+    def __init__(self, user_profile: UserProfile, memory_system: Memory): # Add memory_system
         """Initializes the connection to the generative AI model for code generation."""
+        self.user_profile = user_profile # Store the user_profile instance
+        self.memory = memory_system # Store the memory_system instance
         self.model = None
         try:
             load_dotenv()
@@ -24,11 +28,16 @@ class CodeGenerator:
         if not self.model:
             return "# Code Generator is not available."
 
-        print(f"💻 Generating function for: '{prompt}'...")
+        user_name = self.user_profile.get_preference("general", "user_name", "the user")
+        preferred_quotes = self.user_profile.get_preference("coding_style", "quote_type", "double")
+        indent_size = self.user_profile.get_preference("coding_style", "indent_size", "4")
+
+        print(f"💻 Generating function for '{user_name}': '{prompt}'...")
 
         # A meta-prompt specifically designed to get clean code as a response
         final_prompt = f"""
         User prompt: "Create a Python function that {prompt}"
+        This function is for a user named {user_name}.
 
         You are an expert Python code generator.
         Your task is to generate a single, complete, and clean Python function that satisfies the user's prompt.
@@ -36,6 +45,9 @@ class CodeGenerator:
         1. Type hints for all arguments and the return value.
         2. A clear and concise docstring explaining what it does.
         3. The function should be pure and not have side effects if possible.
+        4. Adhere to these user-specific coding style preferences:
+           - Use {preferred_quotes} quotes for strings.
+           - Use an indent size of {indent_size} spaces.
 
         ONLY return the Python code for the function itself, enclosed in a single markdown code block (```python...```). Do not include any explanatory text before or after the code block.
         """
@@ -48,6 +60,12 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
+            self.memory.remember('last_ai_interaction', {
+                "module": "CodeGenerator",
+                "method": "generate_function",
+                "prompt_summary": prompt[:100],
+                "output_summary": code_block[:150]
+            })
             return code_block
         except Exception as e:
             return f"# An error occurred during code generation: {e}"
@@ -58,11 +76,15 @@ class CodeGenerator:
         if not self.model:
             return "# Code Generator is not available."
 
-        print(f"💻 Generating Streamlit UI for '{source_filename}'...")
+        user_name = self.user_profile.get_preference("general", "user_name", "the user")
+        ui_style_preference = self.user_profile.get_preference("ui_style", "streamlit_theme", "default")
+
+        print(f"💻 Generating Streamlit UI for '{source_filename}' for {user_name} (theme hint: {ui_style_preference})...")
 
         final_prompt = f"""
         You are an expert Streamlit UI generator.
         Your task is to generate a complete, runnable Streamlit script based on the provided Python code containing a data class.
+        The user generating this is {user_name}. If they specified a theme preference like '{ui_style_preference}', consider it if applicable to Streamlit's capabilities.
 
         The generated script must:
         1. Import streamlit as st.
@@ -89,6 +111,12 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
+            self.memory.remember('last_ai_interaction', {
+                "module": "CodeGenerator",
+                "method": "generate_streamlit_ui",
+                "prompt_summary": source_filename,
+                "output_summary": code_block[:150]
+            })
             return code_block
         except Exception as e:
             return f"# An error occurred during UI generation: {e}"
@@ -99,15 +127,20 @@ class CodeGenerator:
         if not self.model:
             return f"# Code Generator is not available."
 
-        print(f"💻 Refactoring code with instruction: '{instruction}'...")
+        user_name = self.user_profile.get_preference("general", "user_name", "the user")
+        refactor_aggressiveness = self.user_profile.get_preference("coding_style", "refactor_aggressiveness", "moderate")
+
+        print(f"💻 Refactoring code for {user_name} with instruction: '{instruction}' (aggressiveness: {refactor_aggressiveness})...")
 
         final_prompt = f"""
         You are an expert Python code refactoring assistant.
         Your task is to rewrite the provided source code based on a specific instruction.
         Ensure the new code is clean, efficient, and maintains the original functionality.
+        The user is {user_name}. Their preferred refactoring aggressiveness is '{refactor_aggressiveness}'.
         ONLY return the new, complete source code in a single markdown code block. Do not add any explanatory text.
 
         Refactoring Instruction: "{instruction}"
+        Consider the user's preference for '{refactor_aggressiveness}' refactoring when applying changes.
 
         Source Code to Refactor:
         ```python
@@ -123,6 +156,12 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
+            self.memory.remember('last_ai_interaction', {
+                "module": "CodeGenerator",
+                "method": "refactor_code",
+                "prompt_summary": instruction[:100],
+                "output_summary": code_block[:150]
+            })
             return code_block
         except Exception as e:
             return f"# An error occurred during code refactoring: {e}"
@@ -165,6 +204,12 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
+            self.memory.remember('last_ai_interaction', {
+                "module": "CodeGenerator",
+                "method": "generate_unit_tests",
+                "prompt_summary": source_filename,
+                "output_summary": code_block[:150]
+            })
             return code_block
         except Exception as e:
             return f"# An error occurred during test generation: {e}"
@@ -186,6 +231,12 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
+            self.memory.remember('last_ai_interaction', {
+                "module": "CodeGenerator",
+                "method": "generate_text", # Used by Agent's attempt_fix
+                "prompt_summary": "LLM Fix Attempt" if "Source Code to Fix:" in prompt else prompt[:100],
+                "output_summary": code_block[:150]
+            })
             return code_block
         except Exception as e:
             # Consider logging the full exception 'e' here for debugging

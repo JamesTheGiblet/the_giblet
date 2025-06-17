@@ -2,5 +2,10 @@
   "roadmap": [],
   "bug_archive": [],
   "preferences": {},
-  "project_creator": "\"James\""
+  "project_creator": "\"James\"",
+  "user_profile_data_v1": {
+    "general": {
+      "james": "vibe coding"
+    }
+  }
 }

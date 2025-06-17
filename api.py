@@ -9,11 +9,14 @@ import shlex # Add shlex if not already imported at the top of api.py
 sys.path.append(str(Path(__file__).parent))
 
 # --- Import Core Modules ---
+from core.idea_synth import IdeaSynthesizer
 from core.roadmap_manager import RoadmapManager
 from core.memory import Memory
 from core.code_generator import CodeGenerator # <<< NEW IMPORT
 from core.automator import Automator # <<< NEW IMPORT
-from core import utils # <<< NEW IMPORT
+from core import agent, command_manager, utils # <<< NEW IMPORT
+from core.user_profile import UserProfile # New import
+from core.skill_manager import SkillManager # New import
 
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
@@ -23,10 +26,14 @@ app = FastAPI(
 )
 memory = Memory()
 roadmap_manager = RoadmapManager(memory_system=memory)
+user_profile = UserProfile(memory_system=memory) # Instantiate UserProfile
 # command_manager is initialized here but has no commands registered by default.
 # For the /agent/execute endpoint to work, this command_manager needs relevant commands.
 automator = Automator() # <<< NEW INSTANCE
-code_generator = CodeGenerator() # <<< NEW INSTANCE
+idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile, memory_system=memory) # Pass memory
+code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass memory
+skill_manager_for_api = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager for API
+agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator) # Instantiate Agent for API
 
 # --- Define Request/Response Models ---
 class GenerationRequest(BaseModel):
@@ -63,6 +70,25 @@ class AgentExecuteResponse(BaseModel):
     fix_attempts: int = 0
     self_correction_successful: bool | None = None
     final_error: str | None = None
+
+# New Pydantic models for User Profile
+class ProfileSetRequest(BaseModel):
+    category: str
+    key: str
+    value: str # Keep it simple as string from UI
+
+class ProfileResponse(BaseModel):
+    profile: dict | None = None
+    message: str | None = None
+
+# New Pydantic models for Feedback
+class FeedbackRequest(BaseModel):
+    rating: str # e.g., "positive", "negative", "neutral"
+    comment: str = ""
+
+class LastInteractionResponse(BaseModel):
+    interaction: dict | None = None
+    message: str | None = None
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -148,6 +174,59 @@ def generate_stubs_endpoint(request: StubRequest):
     return {"error": f"Failed to generate stubs for {request.filepath}."}
 
 
+# --- User Profile API Endpoints ---
+@app.get("/profile", response_model=ProfileResponse)
+def get_user_profile_endpoint():
+    """Retrieves the entire user profile."""
+    data = user_profile.get_all_data()
+    return ProfileResponse(profile=data)
+
+@app.post("/profile/set", response_model=ProfileResponse)
+def set_user_profile_endpoint(request: ProfileSetRequest):
+    """Sets a specific preference in the user profile."""
+    user_profile.add_preference(request.category, request.key, request.value)
+    return ProfileResponse(message=f"Preference '{request.category}.{request.key}' set.")
+
+@app.post("/profile/clear", response_model=ProfileResponse)
+def clear_user_profile_endpoint():
+    """Clears the entire user profile."""
+    user_profile.clear_profile()
+    return ProfileResponse(message="User profile cleared successfully.")
+
+
+# --- Feedback API Endpoints ---
+@app.get("/feedback/last_interaction", response_model=LastInteractionResponse)
+def get_last_ai_interaction_endpoint():
+    """Retrieves the last AI interaction stored in memory."""
+    interaction = memory.recall('last_ai_interaction')
+    # Ensure interaction is a dictionary before trying to use it
+    if interaction and isinstance(interaction, dict):
+        return LastInteractionResponse(interaction=interaction)
+    return LastInteractionResponse(message="No recent AI interaction found in memory.", interaction=None)
+
+@app.post("/feedback", response_model=ProfileResponse) # Reusing ProfileResponse for simple message
+def submit_feedback_endpoint(request: FeedbackRequest):
+    """Submits feedback for the last AI interaction."""
+    last_interaction = memory.recall('last_ai_interaction')
+    if not last_interaction:
+        return ProfileResponse(message="Could not submit feedback: No last AI interaction found.")
+
+    user_profile.add_feedback(request.rating, request.comment, context=last_interaction)
+    memory.remember('last_ai_interaction', None) # Clear after feedback is given
+    return ProfileResponse(message=f"Feedback ('{request.rating}') submitted successfully.")
+
+
+# --- Skill API Endpoints ---
+@app.get("/skills/list")
+def list_skills_endpoint():
+    """Lists all available skills."""
+    return {"skills": skill_manager_for_api.list_skills()}
+
+
+
+# --- Agent API Endpoints ---
+
+
 MAX_API_FIX_ATTEMPTS = 3
 
 @app.post("/agent/plan", response_model=AgentPlanResponse)
@@ -156,7 +235,7 @@ def agent_create_plan_endpoint(request: AgentPlanRequest):
     Creates a multi-step plan for the agent to achieve a goal.
     The plan is also stored in memory for potential execution.
     """
-    plan = agent.create_plan(request.goal)
+    plan = agent_instance.create_plan(request.goal) # Use agent_instance
     if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
         memory.remember('api_last_plan', plan) # Store for API execution
         return AgentPlanResponse(plan=plan)
@@ -221,7 +300,7 @@ def agent_execute_plan_endpoint():
                     code_to_fix = utils.read_file(file_to_test)
                     if code_to_fix:
                         print(f"   └─ [API] LLM attempting to fix {file_to_test}...")
-                        fixed_code = agent.attempt_fix(code_to_fix, current_error_log)
+                        fixed_code = agent_instance.attempt_fix(code_to_fix, current_error_log) # Use agent_instance
                         print(f"   └─ [API] Proposed fix by LLM for {file_to_test}:\n-------\n{fixed_code}\n-------")
                         
                         has_actual_code = any(line.strip() and not line.strip().startswith("#") for line in fixed_code.splitlines())

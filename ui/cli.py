@@ -19,17 +19,21 @@ from core.command_manager import CommandManager
 from core.plugin_manager import PluginManager
 from core.watcher import start_watching # 1. Add the new import at the top
 from core.agent import Agent # 1. Add the new import
+from core.user_profile import UserProfile # New import for UserProfile
+from core.skill_manager import SkillManager # New import for SkillManager
 
 def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
     # --- Initialization ---
-    memory = Memory()
-    idea_synth = IdeaSynthesizer()
+    memory = Memory() # Memory first
+    user_profile = UserProfile(memory_system=memory) # UserProfile needs memory
+    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory) # Pass profile and memory
+    code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass profile and memory
     automator = Automator()
     git_analyzer = GitAnalyzer()
-    code_generator = CodeGenerator()
     agent = Agent(idea_synth=idea_synth, code_generator=code_generator) # Pass code_generator
     command_manager = CommandManager()
+    skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager
     plugin_manager = PluginManager()
     MAX_FIX_ATTEMPTS = 3 # Define how many times to attempt self-correction
     
@@ -43,8 +47,17 @@ def start_cli_loop():
         for name, data in sorted(command_manager.commands.items()):
             print(f"  {name:<30} - {data['description']}") # Ensure consistent spacing
         print("----------------------------\n")
+        print("Agent Commands:")
         print("  plan \"<goal>\"             - Creates a multi-step plan to achieve a goal.")
         print("  execute                    - Executes the most recently created plan.")
+        print("\nUser Profile Commands:")
+        print("  profile get [<cat> [<key>]] - Gets a profile value or the whole profile.")
+        print("  profile set <cat> <key> <val> - Sets a profile value.")
+        print("  profile clear              - Clears the entire user profile.")
+        print("  feedback <rating> [comment] - Provide feedback on the last AI output (rating: good, bad, ok).")
+        print("\nSkill Commands:")
+        print("  skills list                - Lists available skills.")
+        print("  skills refresh             - Refreshes the list of available skills.")
     register("help", handle_help, "Shows this help message.")
 
     # File Commands
@@ -347,10 +360,92 @@ def start_cli_loop():
     register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")
     register("execute", handle_execute, "Executes the most recently created plan.")
 
+    # User Profile Commands
+    def handle_profile(args):
+        if not args:
+            print("Usage: profile [get|set|clear] [<category> <key> <value>]")
+            print("Current profile data:")
+            print(user_profile.get_all_data())
+            return
+
+        action = args[0].lower()
+        if action == "get":
+            if len(args) == 1:
+                print(user_profile.get_all_data())
+            elif len(args) == 2: # Get all preferences in a category
+                category_name = args[1]
+                category_data = user_profile.data.get(category_name) # Access data directly
+                if category_data is not None: # Check if category exists
+                    if category_data: # Check if category is not empty
+                        print(f"Preferences in category '{category_name}':")
+                        for key, value_item in category_data.items(): # Renamed value to value_item
+                            print(f"  {key}: {value_item}")
+                    else:
+                        print(f"Category '{category_name}' is empty.")
+                else:
+                    print(f"Category '{category_name}' not found.")
+            elif len(args) >= 3:
+                value = user_profile.get_preference(args[1], args[2])
+                print(f"{args[1]}.{args[2]} = {value if value is not None else 'Not set'}")
+            else:
+                print("Usage: profile get [<category> [<key>]]")
+        elif action == "set":
+            if len(args) >= 4:
+                user_profile.add_preference(args[1], args[2], " ".join(args[3:]))
+            else:
+                print("Usage: profile set <category> <key> <value>")
+        elif action == "clear":
+            user_profile.clear_profile()
+        else:
+            print(f"Unknown profile action: {action}. Use 'get', 'set', or 'clear'.")
+    register("profile", handle_profile, "Manages user profile settings.")
+
+    # Feedback Command
+    def handle_feedback(args):
+        if not args or args[0].lower() not in ['good', 'bad', 'ok', 'positive', 'negative', 'neutral']:
+            print("Usage: feedback <good|bad|ok> [optional comment]")
+            print("Example: feedback good Loved the creativity!")
+            return
+
+        rating_map = {
+            "good": "positive", "positive": "positive",
+            "bad": "negative", "negative": "negative",
+            "ok": "neutral", "neutral": "neutral"
+        }
+        rating = rating_map.get(args[0].lower())
+        comment = " ".join(args[1:]) if len(args) > 1 else ""
+
+        last_interaction = memory.recall('last_ai_interaction')
+        user_profile.add_feedback(rating, comment, context=last_interaction)
+        memory.remember('last_ai_interaction', None) # Clear after feedback is given
+
+    register("feedback", handle_feedback, "Provide feedback on the last AI-generated output.")
+
+    # Skill Commands
+    def handle_skills(args):
+        if not args or args[0].lower() not in ['list', 'refresh']:
+            print("Usage: skills [list|refresh]")
+            return
+        action = args[0].lower()
+        if action == "list":
+            for skill_info in skill_manager.list_skills():
+                print(f"  - {skill_info['name']}: {skill_info['description']}")
+        elif action == "refresh":
+            skill_manager.refresh_skills()
+    register("skills", handle_skills, "Manages and lists available agent skills.")
     # --- Load Plugins ---
     plugin_manager.discover_plugins()
     for plugin in plugin_manager.plugins:
         plugin.register_commands(command_manager)
+
+    # DEBUG: Print all registered commands before starting the loop
+    print("\n[DEBUG] Registered commands before main loop:")
+    if command_manager.commands:
+        for cmd_name in sorted(command_manager.commands.keys()):
+            print(f"  - {cmd_name}")
+    else:
+        print("  - No commands registered in CommandManager.")
+    print("[DEBUG] End of registered commands list.\n")
 
     print("🧠 The Giblet is awake. All commands registered. Type 'help' for a list of commands.")
     

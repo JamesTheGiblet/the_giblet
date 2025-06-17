@@ -270,12 +270,30 @@ python main.py
 
 ---
 ## Phase 15: ✨ The Personalization Engine v2.0
-* [ ] **Task 15.1: Build an Evolving User Profile Model**
+* [x] **Task 15.1: Build an Evolving User Profile Model**
     * Create a more sophisticated model of user preferences, coding style, and common patterns.
-* [ ] **Task 15.2: Implement Dynamic Prompt Personalization**
+    * [x] **Task 15.1.1: Design and Implement `UserProfile` Class with Memory Persistence**
+        * Created `core/user_profile.py` for storing and managing user-specific data.
+    * [x] **Task 15.1.2: Add CLI Commands for Basic Profile Interaction**
+        * Implemented `profile get|set|clear` commands in the CLI.
+    * [x] **Task 15.1.3: Add Dashboard UI for Profile Management**
+        * Created a "Profile" tab in the Streamlit dashboard to view and set preferences.
+* [x] **Task 15.2: Implement Dynamic Prompt Personalization**
     * Automatically tailor AI prompts based on the user's profile and current context for more relevant results.
-* [ ] **Task 15.3: Create an Interaction Feedback Loop for Vibe Tuning**
+    * [x] **Task 15.2.1: Integrate `UserProfile` into `IdeaSynthesizer` and `CodeGenerator`**
+        * Modified core generation modules to accept and use `UserProfile` data.
+    * [x] **Task 15.2.2: Add Persona-Based Prompting to `IdeaSynthesizer`**
+        * Enhanced `IdeaSynthesizer` to use a `idea_synth_persona` profile setting to influence its response style.
+* [🚧] **Task 15.3: Create an Interaction Feedback Loop for Vibe Tuning**
     * Allow users to easily provide feedback on Giblet's suggestions to refine its understanding of their 'vibe'.
+    * [x] **Task 15.3.1: Store Last AI Interaction in Memory**
+        * Modified `IdeaSynthesizer` and `CodeGenerator` to save a summary of their last output to session memory.
+    * [x] **Task 15.3.2: Implement `UserProfile.add_feedback()` Method**
+        * Added functionality to `UserProfile` to store timestamped feedback entries (rating, comment, context).
+    * [x] **Task 15.3.3: Add `feedback` CLI Command**
+        * Created a CLI command for users to rate the last AI output and add comments.
+    * [x] **Task 15.3.4: Add Feedback UI to Dashboard**
+        * Integrated a section in the dashboard for users to view the last AI interaction and submit feedback (rating/comment).
 
 ---
 ## Phase 16: 🎮 The Interactive Cockpit
@@ -287,3 +305,47 @@ python main.py
     * Implement a file browser within the dashboard to view project files.
 * [x] **Task 16.4: Integrate Automation Commands**
     * Add UI elements to trigger automation tasks like changelog generation and TODO stubbing.
+
+## Phase 17: 🧠 The Skillful Agent & Smart Skills Engine
+* [🚧] **Task 17.1: Design and Implement the "Skill" Core Framework**
+    * Define a system where complex, multi-step operations can be encapsulated as a "skill" that the agent can learn or be programmed with.
+    * [x] **Task 17.1.1: Define the Skill Interface/Structure (`core.skill_manager.Skill`)**
+        * Created a base `Skill` class with `can_handle`, `get_parameters_needed`, and `execute` methods.
+    * [x] **Task 17.1.2: Create a `SkillManager` Class (`core.skill_manager.SkillManager`)**
+        * Implemented `SkillManager` to discover, load, and list skills from a `skills/` directory.
+    * [ ] **Task 17.1.3: Implement Basic Skill Validation in `SkillManager`**
+        * Add checks for adherence to the `Skill` interface and metadata during discovery.
+* [ ] **Task 17.2: Implement Dynamic Skill Invocation in Agent Planning**
+    * Enhance the agent's `create_plan` method to recognize when a user's high-level goal can be achieved by invoking one or more predefined "skills".
+* [ ] **Task 17.3: Develop Proactive Skill Creation & Suggestion Mechanism**
+    * Implement pattern detection, LLM-powered skill generation, automated testing, and user confirmation for new skills.
+
+---
+## Phase 18: ✨ The Vibe-Centric Visual Cockpit
+* [ ] **Task 18.1: Redesign Dashboard for "Vibe Coding" Principles**
+    * Re-evaluate and iterate on the dashboard's UI/UX to minimize friction and align with a more intuitive, "vibe-driven" interaction style.
+* [ ] **Task 18.2: Implement Visual Task Decomposition & Planning Interface**
+    * Create a dashboard component where users can visually break down high-level goals or see the agent's generated plan in a graphical format.
+* [ ] **Task 18.3: Introduce Interactive "Vibe Sliders" for AI Behavior**
+    * Add UI controls in the dashboard that allow the user to directly influence AI parameters (e.g., creativity, verbosity), linked to the `UserProfile`.
+
+---
+## Phase 19: 🔑 The Universal LLM Connector
+* [ ] **Task 19.1: Abstract LLM Provider Interactions**
+    * Develop a common interface/wrapper to allow seamless switching between different LLM providers (Gemini, Ollama, etc.).
+* [ ] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
+    * Enhance API key management and allow users to select the active LLM provider/model via CLI and Dashboard, storing this in `UserProfile`.
+* [ ] **Task 19.3: Add "Auto-Recognition" of Model Capabilities (Stretch Goal)**
+    * Investigate methods for Giblet to infer capabilities of the selected LLM and adapt its strategies accordingly.
+
+---
+## Phase 20: 📚 The Proactive Knowledge Weaver
+* [ ] **Task 20.1: Implement Proactive Learning from User Feedback & Profile**
+    * Develop a module to analyze `feedback_log` and `UserProfile` data to automatically suggest or adapt default prompt templates or agent behaviors.
+* [ ] **Task 20.2: Build a "Project Contextualizer" Module**
+    * Create a system to analyze the current project's structure and recent changes to provide more deeply contextual information to LLMs.
+* [ ] **Task 20.3: Introduce "Just-in-Time" Proactive Suggestions in UI/CLI**
+    * Enable Giblet to offer unsolicited but relevant suggestions or shortcuts based on the project context and user profile.
+
+---
+## Phase 21: 

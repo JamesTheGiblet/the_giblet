@@ -12,6 +12,7 @@ from core.roadmap_manager import RoadmapManager
 from core.git_analyzer import GitAnalyzer
 from core.idea_synth import IdeaSynthesizer
 from core.memory import Memory
+from core.user_profile import UserProfile # Import UserProfile
 
 # Function to sanitize strings for display, especially on Windows with 'charmap' issues
 def sanitize_for_display(text: str) -> str:
@@ -39,10 +40,15 @@ def main():
         layout="wide"
     )
 
+    # Initialize Memory and UserProfile for dashboard-specific instantiations
+    # Note: API calls will use their own instances initialized in api.py
+    memory_instance = Memory()
+    user_profile_instance = UserProfile(memory_system=memory_instance)
+
     st.title("🧠 The Giblet: Project Cockpit")
 
     # <<< UPDATED: Add a new tab for the refactor tool
-    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation"]) # Agent tab removed
+    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile"]) # New Profile tab
 
     with tabs[0]:
         st.header("Project Roadmap")
@@ -107,7 +113,8 @@ def main():
     with tabs[2]:
         # The Generator tab requires its own instances
         try:
-            idea_synth = IdeaSynthesizer()
+            # Pass the dashboard's user_profile and memory instances
+            idea_synth = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory_instance)
             st.header("Code Generator")
             st.write("Generate high-quality, documented Python code from a simple prompt.")
 
@@ -356,6 +363,139 @@ def main():
                         st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
                     except Exception as e_stub:
                         st.error(f"Error generating stubs for {stub_filepath}: {sanitize_for_display(str(e_stub))}")
+    
+    with tabs[6]: # Corresponds to "👤 Profile"
+        st.header("User Profile Management")
+
+        # Function to fetch profile data
+        def fetch_profile():
+            try:
+                response = httpx.get("http://localhost:8000/profile", timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                st.session_state.user_profile_data = data.get("profile", {})
+            except Exception as e:
+                st.error(f"Failed to fetch profile: {sanitize_for_display(str(e))}")
+                st.session_state.user_profile_data = {}
+
+        # Initialize or refresh profile data
+        if 'user_profile_data' not in st.session_state or st.button("Refresh Profile Data", key="refresh_profile_btn"):
+            fetch_profile()
+
+        st.subheader("Current Profile Settings")
+        profile_data_to_display = st.session_state.get('user_profile_data')
+
+        if profile_data_to_display is not None: # Check if it's initialized
+            if not profile_data_to_display: # It's an empty dictionary
+                st.info("User profile is currently empty. Use the 'Set a Preference' form below to add your settings.")
+            else: # It has data
+                for category, settings in profile_data_to_display.items():
+                    if isinstance(settings, dict) and settings: # Check if settings is a non-empty dictionary
+                        st.markdown(f"##### {category.replace('_', ' ').title()}")
+                        for key, value in settings.items():
+                            st.markdown(f"- **{key.replace('_', ' ').title()}:** `{value}`")
+                        st.write("---") # Add a small divider between categories
+                    elif settings: # If it's not a dict but has a value (less likely with current structure but good to handle)
+                        st.markdown(f"- **{category.replace('_', ' ').title()}:** `{settings}`")
+
+        st.divider()
+        st.subheader("Set a Preference")
+        with st.form("set_preference_form", clear_on_submit=True):
+            # Predefined categories based on your DEFAULT_PROFILE_STRUCTURE
+            # You might want to fetch these dynamically or define them more centrally
+            # For now, let's hardcode based on your current default structure
+            default_categories = ["general", "coding_style", "project_settings", "llm_settings", "ui_style"] # Added a few more common ones
+            
+            st.write("Select a category or type a new one:")
+            pref_category_select = st.selectbox("Common Categories", options=default_categories, index=0, key="pref_cat_select", help="Choose a common category or type a custom one below.")
+            pref_category_custom = st.text_input("Or Enter Custom Category", key="pref_cat_custom", help="If your category isn't listed, enter it here. This will override the selection above.")
+
+            # Determine the category to use
+            pref_category = pref_category_custom if pref_category_custom else pref_category_select
+            
+            pref_key = st.text_input(f"Preference Key for '{pref_category}' (e.g., 'user_name', 'indent_size')", key="pref_key", help="The specific name of the preference. For 'general', try 'user_name' or 'company_name'. For 'coding_style', try 'preferred_quote_type' or 'indent_size'.")
+            pref_value = st.text_input("Preference Value", key="pref_val", help="The actual setting for this preference (e.g., 'James', 'Acme Corp', 'single', '2').")
+            submitted_pref = st.form_submit_button("Set Preference")
+
+            if submitted_pref:
+                # Debug print
+                st.write(f"DEBUG: Category='{pref_category}', Key='{pref_key}', Value='{pref_value}'")
+                if pref_category and pref_key: # Value can be empty string
+                    try:
+                        payload = {"category": pref_category, "key": pref_key, "value": pref_value}
+                        response = httpx.post("http://localhost:8000/profile/set", json=payload, timeout=10)
+                        response.raise_for_status()
+                        st.success(response.json().get("message", "Preference set!"))
+                        fetch_profile() # Refresh data after setting
+                    except Exception as e:
+                        st.error(f"Failed to set preference: {sanitize_for_display(str(e))}")
+                else:
+                    st.warning("Category and Key are required to set a preference.")
+        
+        st.divider()
+        st.subheader("Clear Profile")
+        if st.button("Clear Entire User Profile", type="secondary", key="clear_profile_btn"):
+            # Simple confirmation for now, could be a modal or more elaborate
+            confirm_clear = st.checkbox("I understand this will delete all my profile settings.", key="confirm_clear_profile_cb")
+            if confirm_clear:
+                try:
+                    response = httpx.post("http://localhost:8000/profile/clear", timeout=10)
+                    response.raise_for_status()
+                    st.success(response.json().get("message", "Profile cleared!"))
+                    fetch_profile() # Refresh data after clearing
+                except Exception as e:
+                    st.error(f"Failed to clear profile: {sanitize_for_display(str(e))}")
+
+        st.divider()
+        st.subheader("Provide Feedback on Last AI Interaction")
+
+        if 'last_interaction_for_feedback' not in st.session_state:
+            st.session_state.last_interaction_for_feedback = None
+
+        if st.button("Load Last Interaction for Feedback", key="load_last_interaction_btn"):
+            try:
+                response = httpx.get("http://localhost:8000/feedback/last_interaction", timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                if data.get("interaction"):
+                    st.session_state.last_interaction_for_feedback = data.get("interaction") # This should be a dict
+                else:
+                    st.session_state.last_interaction_for_feedback = None
+                    # Display the message from the API if no interaction is found
+                    st.info(data.get("message", "No recent AI interaction available for feedback."))
+            except Exception as e:
+                st.error(f"Failed to load last interaction: {sanitize_for_display(str(e))}")
+                st.session_state.last_interaction_for_feedback = None
+        
+        current_interaction = st.session_state.get('last_interaction_for_feedback')
+
+        if current_interaction and isinstance(current_interaction, dict):
+            interaction = current_interaction
+            st.markdown(f"**Regarding:** `{interaction.get('module', 'N/A')}` - `{interaction.get('method', 'N/A')}`")
+            st.markdown(f"**Prompt Summary:**")
+            st.caption(f"`{interaction.get('prompt_summary', 'N/A')}`")
+            st.markdown(f"**Output Summary:**")
+            st.caption(f"`{interaction.get('output_summary', 'N/A')}`")
+
+            with st.form("feedback_form", clear_on_submit=True):
+                feedback_rating = st.radio("Your Rating:", ("positive", "neutral", "negative"), key="feedback_rating_radio", horizontal=True)
+                feedback_comment = st.text_area("Optional Comment:", key="feedback_comment_area")
+                submitted_feedback = st.form_submit_button("Submit Feedback")
+
+                if submitted_feedback:
+                    try:
+                        payload = {"rating": feedback_rating, "comment": feedback_comment}
+                        response = httpx.post("http://localhost:8000/feedback", json=payload, timeout=10)
+                        response.raise_for_status()
+                        st.success(response.json().get("message", "Feedback submitted!"))
+                        # Clear the displayed interaction after submitting feedback
+                        st.session_state.last_interaction_for_feedback = None
+                    except Exception as e:
+                        st.error(f"Failed to submit feedback: {sanitize_for_display(str(e))}")
+        else:
+            st.info("Click 'Load Last Interaction for Feedback' to see details of the last AI output and provide your rating.")
+            # The button to load is already present above this section.
+
 
 if __name__ == "__main__":
     main()
