@@ -34,7 +34,8 @@ class GitAnalyzer:
         if not self.repo: return []
         
         active_branch = self.repo.active_branch
-        commits = list(self.repo.iter_commits(active_branch.name, max_count=max_count))
+        # <<< FIX: Specify the encoding for reading commit messages
+        commits = list(self.repo.iter_commits(active_branch.name, max_count=max_count, encoding='utf-8'))
         
         log = []
         for commit in commits:

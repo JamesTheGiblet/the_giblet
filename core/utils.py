@@ -21,27 +21,27 @@ def safe_path(filepath: str) -> Path:
     return resolved_path
 
 def read_file(filepath: str) -> str | None:
-    """Safely reads the content of a file within the workspace."""
+    """Reads the content of a file safely."""
     try:
         path = safe_path(filepath)
-        print(f"📖 Reading from {path}...")
-        return path.read_text(encoding='utf-8')
-    except FileNotFoundError:
-        print(f"❌ File not found: {filepath}")
-        return None
+        if path and path.exists() and path.is_file():
+            return path.read_text(encoding='utf-8')
+        else:
+            print(f"❌ File not found or is not a file: {filepath}")
+            return None
     except Exception as e:
         print(f"❌ Error reading file {filepath}: {e}")
         return None
 
 def write_file(filepath: str, content: str) -> bool:
-    """Safely writes content to a file within the workspace."""
+    """Writes content to a file safely."""
     try:
         path = safe_path(filepath)
-        # Ensure the parent directory exists
-        path.parent.mkdir(parents=True, exist_ok=True)
-        print(f"✍️ Writing to {path}...")
-        path.write_text(content, encoding='utf-8')
-        return True
+        if path:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding='utf-8')
+            return True
+        return False
     except Exception as e:
         print(f"❌ Error writing to file {filepath}: {e}")
         return False

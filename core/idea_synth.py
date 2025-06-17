@@ -9,7 +9,8 @@ class IdeaSynthesizer:
         Initializes the connection to the generative AI model, loading the API key from a .env file.
         """
         try:
-            load_dotenv()
+            # <<< FIX: Explicitly use utf-8 encoding to read the .env file
+            load_dotenv(encoding='utf-8')
             
             self.api_key = os.getenv("GEMINI_API_KEY")
             if not self.api_key:

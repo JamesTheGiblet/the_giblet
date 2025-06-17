@@ -1,3 +1,4 @@
-# A simple function to get squared numbers
-def get_squares(numbers):
+from typing import List
+
+def get_squares(numbers: List[int]) -> List[int]:
     return [n*n for n in numbers]

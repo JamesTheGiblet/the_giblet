@@ -1,4 +1,8 @@
 # main.py
+import os
+os.environ['PYTHONUTF8'] = '1' # Force Python to use UTF-8 mode
+os.environ['GIT_PYTHON_GIT_OPTIONS'] = '-c color.ui=false' # Helps with Git output parsing
+
 from ui.cli import start_cli_loop
 from core.logger_setup import setup_logger
 

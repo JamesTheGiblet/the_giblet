@@ -161,11 +161,32 @@ def start_cli_loop():
 
     # System Commands
     def handle_dashboard(args):
+        # Check if a process is already stored in session memory and is still running
+        existing_process = memory.recall('streamlit_process')
+        if existing_process and isinstance(existing_process, subprocess.Popen) and existing_process.poll() is None:
+            print("Dashboard is already running. Opening a new browser tab to http://localhost:8501...")
+            webbrowser.open("http://localhost:8501")
+            return
+
+        # If no process is running, launch a new one
         print("🚀 Launching The Giblet Dashboard...")
-        subprocess.Popen([sys.executable, "-m", "streamlit", "run", "dashboard.py", "--server.runOnSave", "true"])
-        time.sleep(2)
-        webbrowser.open("http://localhost:8501")
-    register("dashboard", handle_dashboard, "Launches the web-based visual dashboard.")
+        print("   If a browser tab doesn't open, please navigate to http://localhost:8501")
+        try:
+            # Start the streamlit server as a background process
+            new_process = subprocess.Popen(
+                [sys.executable, "-m", "streamlit", "run", "dashboard.py", "--server.runOnSave", "true"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            # Store the new process object in session memory
+            memory.remember('streamlit_process', new_process)
+            # Give the server a moment to start up
+            time.sleep(3)
+            # Explicitly open the web browser
+            webbrowser.open("http://localhost:8501")
+        except Exception as e:
+            print(f"❌ Failed to launch dashboard: {e}")
+    register("dashboard", handle_dashboard, "Launches or focuses the web dashboard.")
 
     # --- Load Plugins ---
     plugin_manager.discover_plugins()

@@ -21,7 +21,7 @@ class RoadmapManager:
             print("⚠️ Roadmap file not found.")
             return []
         print(f"🗺️ Loading and parsing roadmap from {ROADMAP_FILE}")
-        content = ROADMAP_FILE.read_text(encoding='utf-8')
+        content = ROADMAP_FILE.read_text(encoding='utf-8') # <<< Already here
         task_pattern = re.compile(r"^\s*\*\s*\[([ xX])\]\s*\*\*(.*?)\*\*", re.MULTILINE)
         tasks = []
         for match in task_pattern.finditer(content):
@@ -47,7 +47,7 @@ class RoadmapManager:
         # (complete_task is the same)
         print(f"🗺️ Attempting to complete task: '{task_description}'...")
         try:
-            lines = ROADMAP_FILE.read_text(encoding='utf-8').splitlines()
+            lines = ROADMAP_FILE.read_text(encoding='utf-8').splitlines() # <<< Already here
             task_found = False
             for i, line in enumerate(lines):
                 if task_description in line and line.strip().startswith('* [ ]'):
@@ -55,7 +55,7 @@ class RoadmapManager:
                     task_found = True
                     break
             if task_found:
-                ROADMAP_FILE.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+                ROADMAP_FILE.write_text('\n'.join(lines) + '\n', encoding='utf-8') # <<< Already here
                 print(f"✅ Task '{task_description}' marked as complete.")
                 self.tasks = self._load_and_parse_roadmap()
                 return True
