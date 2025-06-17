@@ -252,25 +252,38 @@ python main.py
 
 ---
 ## Phase 13: 💻 The Environment Integrator (IDE & Shell)
-* [ ] **Task 13.1: Create VS Code Extension (Proof of Concept)**
-* [ ] **Task 13.2: Implement Shell Alias & Function Wrappers**
-* [ ] **Task 13.3: Build Filesystem Watcher with Proactive Suggestions**
+* [x] **Task 13.1: Create VS Code Extension (Proof of Concept)**
+    * Develop a basic extension to bring Giblet's commands directly into the VS Code interface.
+* [x] **Task 13.2: Implement Shell Alias & Function Wrappers**
+    * Create convenient shell aliases and functions to make invoking Giblet features quicker from the terminal.
+* [x] **Task 13.3: Build Filesystem Watcher with Proactive Suggestions**
+    * Implement a background process that monitors file changes and offers contextual help or automation.
 
 ---
 ## Phase 14: 🤖 The Autonomous Agent
-* [ ] **Task 14.1: Develop a Task Decomposition Engine**
-* [ ] **Task 14.2: Implement a Multi-Step Command Execution Loop**
+* [x] **Task 14.1: Develop a Task Decomposition Engine**
+    * Enable Giblet to break down complex user requests into smaller, manageable sub-tasks.
+* [x] **Task 14.2: Implement a Multi-Step Command Execution Loop**
+    * Allow Giblet to execute a sequence of commands autonomously to achieve a larger goal.
 * [ ] **Task 14.3: Add Self-Correction Logic based on Test Failures**
+    * Empower Giblet to attempt to fix its own generated code if automated tests fail.
 
 ---
 ## Phase 15: ✨ The Personalization Engine v2.0
 * [ ] **Task 15.1: Build an Evolving User Profile Model**
+    * Create a more sophisticated model of user preferences, coding style, and common patterns.
 * [ ] **Task 15.2: Implement Dynamic Prompt Personalization**
+    * Automatically tailor AI prompts based on the user's profile and current context for more relevant results.
 * [ ] **Task 15.3: Create an Interaction Feedback Loop for Vibe Tuning**
+    * Allow users to easily provide feedback on Giblet's suggestions to refine its understanding of their 'vibe'.
 
 ---
 ## Phase 16: 🎮 The Interactive Cockpit
-* [ ] **Task 16.1: Build the 'Generator' Tab**
-* [ ] **Task 16.2: Build the 'Refactor' Tab**
-* [ ] **Task 16.3: Build the 'File Explorer' Tab**
-* [ ] **Task 16.4: Integrate Automation Commands**
+* [x] **Task 16.1: Build the 'Generator' Tab**
+    * Create a dedicated section in the dashboard for code generation and idea synthesis.
+* [x] **Task 16.2: Build the 'Refactor' Tab**
+    * Add a UI for selecting files and providing instructions to refactor code.
+* [x] **Task 16.3: Build the 'File Explorer' Tab**
+    * Implement a file browser within the dashboard to view project files.
+* [x] **Task 16.4: Integrate Automation Commands**
+    * Add UI elements to trigger automation tasks like changelog generation and TODO stubbing.

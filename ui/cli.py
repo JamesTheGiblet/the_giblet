@@ -17,6 +17,8 @@ from core.git_analyzer import GitAnalyzer
 from core.code_generator import CodeGenerator
 from core.command_manager import CommandManager
 from core.plugin_manager import PluginManager
+from core.watcher import start_watching # 1. Add the new import at the top
+from core.agent import Agent # 1. Add the new import
 
 def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
@@ -26,6 +28,7 @@ def start_cli_loop():
     automator = Automator()
     git_analyzer = GitAnalyzer()
     code_generator = CodeGenerator()
+    agent = Agent(idea_synth=idea_synth, code_generator=code_generator) # Pass code_generator
     command_manager = CommandManager()
     plugin_manager = PluginManager()
     
@@ -37,15 +40,41 @@ def start_cli_loop():
     def handle_help(args):
         print("\n--- The Giblet CLI: Help ---")
         for name, data in sorted(command_manager.commands.items()):
-            print(f"  {name:<30} - {data['description']}")
+            print(f"  {name:<30} - {data['description']}") # Ensure consistent spacing
         print("----------------------------\n")
+        print("  plan \"<goal>\"             - Creates a multi-step plan to achieve a goal.")
+        print("  execute                    - Executes the most recently created plan.")
     register("help", handle_help, "Shows this help message.")
 
     # File Commands
+    # <<< UPDATED: 'write' command handler
+    def handle_write(args):
+        if not args:
+            print("Usage: write <filepath>")
+            return
+        filepath = args[0]
+        print("Enter content for the file. Type 'EOF' on a new line to finish.")
+        lines = []
+        while True:
+            try:
+                line = input()
+                if line == "EOF":
+                    break
+                lines.append(line)
+            except EOFError: # Handles Ctrl+D as EOF
+                break
+        content = "\n".join(lines)
+        if utils.write_file(filepath, content):
+            memory.remember('last_file_written', filepath) # Store for the agent
+            print(f"✅ Content written to {filepath}")
+        else:
+            print(f"❌ Failed to write to {filepath}")
+
     register("read", lambda args: utils.read_file(args[0]) if args else print("Usage: read <filepath>"), "Reads a file.")
-    register("write", lambda args: utils.write_file(args[0], input("Enter content (EOF to end):\n").rsplit('\nEOF')[0]) if args else print("Usage: write <filepath>"), "Writes to a file.")
+    register("write", handle_write, "Writes content to a file.")
     register("ls", lambda args: print('\n'.join(utils.list_files(args[0] if args else "."))), "Lists files.")
-    register("exec", lambda args: print(utils.execute_command(" ".join(args))), "Executes a shell command.")
+    # <<< UPDATED: 'exec' handler to return results for self-correction
+    register("exec", lambda args: utils.execute_command(" ".join(args)), "Executes a shell command.")
     
     # Memory Commands
     register("remember", lambda args: memory.remember(args[0], " ".join(args[1:])) if len(args) > 1 else print("Usage: remember <key> <value>"), "Saves to session memory.")
@@ -168,7 +197,7 @@ def start_cli_loop():
             webbrowser.open("http://localhost:8501")
             return
 
-        # If no process is running, launch a new one
+        #  If no process is running, launch a new one
         print("🚀 Launching The Giblet Dashboard...")
         print("   If a browser tab doesn't open, please navigate to http://localhost:8501")
         try:
@@ -187,6 +216,98 @@ def start_cli_loop():
         except Exception as e:
             print(f"❌ Failed to launch dashboard: {e}")
     register("dashboard", handle_dashboard, "Launches or focuses the web dashboard.")
+
+    # 3. Add the new command handler function in start_cli_loop()
+    def handle_watch(args):
+        start_watching()
+    register("watch", handle_watch, "Enters watch mode to provide proactive suggestions on file changes.")
+
+    # 4. Add the new command handler function and registration
+    # 2. Update the `handle_plan` function to save the plan
+    def handle_plan(args):
+        if not args:
+            print("Usage: plan \"<your high-level goal>\"")
+            return
+
+        goal = " ".join(args)
+        plan = agent.create_plan(goal)
+
+        print("\n--- Generated Plan ---")
+        if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
+            # <<< NEW: Save the plan to session memory
+            memory.remember('last_plan', plan)
+            for i, step in enumerate(plan, 1):
+                print(f"Step {i}: giblet {step}")
+            print("----------------------\n")
+            print("To run this plan, use the 'execute' command.")
+        elif isinstance(plan, list) and len(plan) > 0 :
+            print(plan[0]) # Print the failure message
+            print("----------------------\n")
+        else:
+            print("Failed to generate a plan or the plan was empty.")
+            print("----------------------\n")
+
+    # <<< UPDATED: handle_execute with self-correction logic
+    def handle_execute(args):
+        plan = memory.recall('last_plan')
+        if not plan:
+            print("❌ No plan found in memory. Please generate a plan first using the 'plan' command.")
+            return
+
+        print("\n--- About to Execute Plan ---")
+        for i, step in enumerate(plan, 1):
+            print(f"Step {i}: giblet {step}")
+        print("---------------------------\n")
+
+        confirm = input("Proceed with execution? (y/n): ").lower()
+        if confirm != 'y':
+            print("❌ Execution cancelled.")
+            return
+
+        print("\n🚀 Executing plan...")
+        for i, command_string in enumerate(plan, 1):
+            print(f"\n--- Running Step {i}: giblet {command_string} ---")
+            # Use shlex to correctly parse the command string from the plan
+            parts = shlex.split(command_string)
+            command_name = parts[0].lower()
+            cmd_args = parts[1:]
+
+            # Execute the command and get its result
+            # This assumes command_manager.execute() is modified to return handler results
+            execution_result = command_manager.execute(command_name, cmd_args)
+
+            return_code, stdout, stderr = 0, "", "" # Defaults
+            if isinstance(execution_result, tuple) and len(execution_result) == 3:
+                return_code, stdout, stderr = execution_result
+            
+            is_test_step = (command_name == "exec" and cmd_args and "pytest" in " ".join(cmd_args))
+
+            if is_test_step and return_code != 0:
+                print("   └─ ❗ Tests failed.")
+                file_to_test = memory.recall('last_file_written')
+                # If last_file_written isn't set, try to infer from pytest args (e.g., pytest some_file.py)
+                if not file_to_test and len(cmd_args) > 0:
+                    # This is a simple heuristic; might need refinement
+                    for arg in cmd_args:
+                        if arg.endswith(".py"):
+                            file_to_test = arg
+                            break
+                
+                if file_to_test:
+                    error_log = stdout + stderr
+                    original_code = utils.read_file(file_to_test)
+                    if original_code:
+                        fixed_code = agent.attempt_fix(original_code, error_log)
+                        utils.write_file(file_to_test, fixed_code)
+                        print(f"   └─ ✨ Applied potential fix to {file_to_test}. Retrying tests...")
+                        return_code, _, _ = utils.execute_command(" ".join(cmd_args)) # Retry directly
+                        print("   └─ ✅ Self-correction successful! Tests now pass." if return_code == 0 else "   └─ ❌ Self-correction failed. Tests still failing.")
+                else:
+                    print("   └─ ⚠️ Could not determine which file to fix for self-correction.")
+        print("\n✅ Plan execution complete.")
+
+    register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")
+    register("execute", handle_execute, "Executes the most recently created plan.")
 
     # --- Load Plugins ---
     plugin_manager.discover_plugins()

@@ -9,9 +9,8 @@ class CommandManager:
         self.commands[name] = {"handler": handler, "description": description}
 
     def execute(self, command_name: str, args: list):
-        """Executes a registered command."""
         if command_name in self.commands:
-            # Call the handler with the list of arguments
-            self.commands[command_name]["handler"](args)
+            return self.commands[command_name]["handler"](args) # ADDED return
         else:
             print(f"Unknown command: '{command_name}'. Type 'help' for options.")
+            return None # Or handle error appropriately

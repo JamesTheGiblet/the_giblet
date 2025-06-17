@@ -9,3 +9,4 @@ pytest
 redis
 streamlit
 uvicorn[standard]
+watchdog

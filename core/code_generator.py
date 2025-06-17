@@ -137,15 +137,18 @@ class CodeGenerator:
 
         final_prompt = f"""
         You are an expert Python test generator who uses the pytest framework.
-        Your task is to write a comprehensive set of unit tests for the provided source code.
+        Your task is to write a comprehensive set of unit tests for the provided source code. 
+        CRITICALLY IMPORTANT: The tests MUST verify the function's behavior based on its name and common programming conventions, NOT based on its current potentially flawed implementation. For example, a function named 'add' MUST be tested as if it performs addition (e.g., add(2,3) should be 5), regardless of what the provided source code currently does. A function named 'subtract' must be tested as if it performs subtraction.
 
         The generated test script must:
         1. Import pytest and the necessary modules from the source file.
-        2. Include tests for edge cases, normal inputs, and expected failures (e.g., using `pytest.raises`).
-        3. Follow standard pytest conventions, with test function names starting with `test_`.
+        2. Include tests for edge cases and normal inputs, ensuring they validate the expected, correct behavior according to the function's implied purpose.
+        3. For testing invalid inputs (e.g., wrong types that should cause an error in the function), use `pytest.raises` to assert that appropriate errors are raised by the function itself.
+        4. Follow standard pytest conventions, with test function names starting with `test_`.
         4. Be complete and runnable as-is.
+        5. All generated tests should pass ONLY if the source code correctly implements the function's implied purpose (e.g., an 'add' function actually adds).
 
-        ONLY return the Python code for the test script, enclosed in a single markdown code block. Do not include any explanatory text.
+        ONLY return the Python code for the test script, enclosed in a single markdown code block. Do not include any explanatory text before or after the code block.
 
         Source Code from '{source_filename}':
         ```python
@@ -164,3 +167,25 @@ class CodeGenerator:
             return code_block
         except Exception as e:
             return f"# An error occurred during test generation: {e}"
+
+    def generate_text(self, prompt: str) -> str:
+        """
+        Generates a direct text response from the model based on a given prompt,
+        expecting a Python code block as the primary output.
+        """
+        if not self.model:
+            return "# Code Generator is not available."
+
+        print(f"💻 Generating text from prompt (expecting code)...")
+        try:
+            response = self.model.generate_content(prompt)
+            # Clean up the response to extract only the code block
+            code_block = response.text.strip()
+            if code_block.startswith("```python"):
+                code_block = code_block[len("```python"):].strip()
+            if code_block.endswith("```"):
+                code_block = code_block[:-len("```")].strip()
+            return code_block
+        except Exception as e:
+            # Consider logging the full exception 'e' here for debugging
+            return f"# An error occurred during text generation: {e}"
