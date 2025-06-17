@@ -192,7 +192,8 @@ python main.py
     * Implemented core Git analysis functions within the `GitAnalyzer` class, enabling status checks, branch listing, and retrieval of commit logs directly from the CLI.
 * [x] **Task 6.2: Create AI-Powered Repo Summarizer**
     * Integrated the `IdeaSynthesizer` with `GitAnalyzer` to provide AI-generated summaries of recent repository activity, offering high-level insights into project progress.
-* [ ] **Task 6.3: Implement Contextual Vibe Mode (Git Branch)**
+* [x] **Task 6.3: Implement Contextual Vibe Mode (Git Branch)**
+    * Enhanced the CLI prompt to dynamically display the current Git branch, providing immediate context when a manual focus is not active.
 
 ---
 ## Phase 7: 🎨 The Visual Canvas (Dashboard)

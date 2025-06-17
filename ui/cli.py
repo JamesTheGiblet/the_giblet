@@ -6,6 +6,8 @@ from core.automator import Automator
 from core.idea_synth import IdeaSynthesizer # <<< NEW IMPORT
 from core.git_analyzer import GitAnalyzer # <<< NEW IMPORT
 import logging # <<< NEW IMPORT
+import subprocess # <<< NEW IMPORT
+import sys # <<< NEW IMPORT
 
 def print_help():
     """Prints the available commands and their usage."""
@@ -13,6 +15,7 @@ def print_help():
     
     # <<< NEW SECTION
     print("\nCreative Commands:")
+    print("  dashboard              - Launches the web-based visual dashboard.") # <<< NEW
     print("  idea \"<prompt>\"          - Brainstorms practical ideas for a prompt.")
     print("  idea --weird \"<prompt>\"  - Brainstorms weird and unconventional ideas.")
 
@@ -145,6 +148,12 @@ def start_cli_loop():
                     roadmap_manager.view_roadmap()
                 else:
                     print(f"Unknown roadmap command: '{arg1}'. Try 'roadmap done \"<description>\"' or just 'roadmap'.")
+
+            # <<< NEW: Dashboard command block
+            elif command == "dashboard":
+                print("🚀 Launching The Giblet Dashboard in your browser...")
+                # We use sys.executable to ensure we use the python from the current virtual env
+                subprocess.Popen([sys.executable, "-m", "streamlit", "run", "dashboard.py"])
 
             # <<< NEW: Git command block
             elif command == "git":
