@@ -1,7 +1,7 @@
 # plugins/ollama_plugin.py
 from core.plugin_base import BasePlugin
 try:
-    from langchain_community.chat_models import ChatOllama
+    from langchain_ollama import ChatOllama
     OLLAMA_AVAILABLE = True
 except ImportError:
     OLLAMA_AVAILABLE = False
@@ -12,8 +12,8 @@ class OllamaPlugin(BasePlugin):
         if OLLAMA_AVAILABLE:
             try:
                 # This assumes Ollama is running and has the 'llama3' model
-                self.llm = ChatOllama(model="llama3")
-                print("🦙 Ollama plugin initialized with model 'llama3'.")
+                self.llm = ChatOllama(model="mistral")
+                print("🦙 Ollama plugin initialized with model 'mistral'.")
             except Exception as e:
                 print(f"🦙 Ollama plugin loaded, but failed to connect to Ollama service: {e}")
         else:

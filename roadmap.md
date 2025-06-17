@@ -217,12 +217,47 @@ python main.py
 
 ---
 ## Phase 9: 🔌 The Plugin SDK
-* [ ] **Task 9.1: Define Plugin Architecture and Entry Points**
-* [ ] **Task 9.2: Refactor a Core Module into a Plugin**
-* [ ] **Task 9.3: Create Plugin for Local LLMs (Ollama/LangChain)**
+* [x] **Task 9.1: Define Plugin Architecture and Entry Points**
+    * This established the foundational structure for how plugins are discovered, loaded, and how they register their commands with The Giblet's core system.
+* [x] **Task 9.2: Refactor a Core Module into a Plugin**
+    * This involved migrating an existing internal component to the new plugin system, serving as a proof-of-concept and ensuring the architecture was practical.
+* [x] **Task 9.3: Create Plugin for Local LLMs (Ollama/LangChain)**
+    * This demonstrated the extensibility of the plugin system by creating a new plugin to integrate with locally running Large Language Models, expanding The Giblet's capabilities.
 
 ---
 ## Phase 10: 💫 The Sentient Loop (Self-Improvement)
-* [ ] **Task 10.1: Implement `unit_tester` command**
-* [ ] **Task 10.2: Create `test thyself` command**
-* [ ] **Task 10.3: Create `refactor thyself` command (Stretch Goal)**
+* [x] **Task 10.1: Implement `unit_tester` command**
+    * This will introduce a dedicated CLI command for The Giblet to automatically generate comprehensive pytest unit tests for specified Python source files, enhancing code reliability.
+* [x] **Task 10.2: Create `test thyself` command**
+    * This command will enable The Giblet to autonomously execute its own internal test suite, verifying its operational integrity and the correctness of its modules.
+* [x] **Task 10.3: Create `refactor thyself` command (Stretch Goal)**
+    * As an advanced capability, this command would allow The Giblet to analyze and refactor its own codebase, aiming for improvements in structure, efficiency, or adherence to preferred coding styles.
+
+## Phase 11: 🤝 The Collaborator (Team Features)
+* [ ] **Task 11.1: Implement Shared Project State**
+* [ ] **Task 11.2: Create Asynchronous Task Assignment Command**
+* [ ] **Task 11.3: Develop Shared Team Checkpoints**
+
+---
+## Phase 12: ☁️ The Deployable Service
+* [ ] **Task 12.1: Build Core Service API (FastAPI)**
+* [ ] **Task 12.2: Refactor CLI and Dashboard as API Clients**
+* [ ] **Task 12.3: Package Giblet Service as a Docker Container**
+
+---
+## Phase 13: 💻 The Environment Integrator (IDE & Shell)
+* [ ] **Task 13.1: Create VS Code Extension (Proof of Concept)**
+* [ ] **Task 13.2: Implement Shell Alias & Function Wrappers**
+* [ ] **Task 13.3: Build Filesystem Watcher with Proactive Suggestions**
+
+---
+## Phase 14: 🤖 The Autonomous Agent
+* [ ] **Task 14.1: Develop a Task Decomposition Engine**
+* [ ] **Task 14.2: Implement a Multi-Step Command Execution Loop**
+* [ ] **Task 14.3: Add Self-Correction Logic based on Test Failures**
+
+---
+## Phase 15: ✨ The Personalization Engine v2.0
+* [ ] **Task 15.1: Build an Evolving User Profile Model**
+* [ ] **Task 15.2: Implement Dynamic Prompt Personalization**
+* [ ] **Task 15.3: Create an Interaction Feedback Loop for Vibe Tuning**

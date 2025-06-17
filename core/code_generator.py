@@ -126,3 +126,41 @@ class CodeGenerator:
             return code_block
         except Exception as e:
             return f"# An error occurred during code refactoring: {e}"
+        
+    # <<< NEW METHOD
+    def generate_unit_tests(self, source_code: str, source_filename: str) -> str:
+        """Generates pytest unit tests for a given block of source code."""
+        if not self.model:
+            return "# Code Generator is not available."
+
+        print(f"🔬 Generating unit tests for '{source_filename}'...")
+
+        final_prompt = f"""
+        You are an expert Python test generator who uses the pytest framework.
+        Your task is to write a comprehensive set of unit tests for the provided source code.
+
+        The generated test script must:
+        1. Import pytest and the necessary modules from the source file.
+        2. Include tests for edge cases, normal inputs, and expected failures (e.g., using `pytest.raises`).
+        3. Follow standard pytest conventions, with test function names starting with `test_`.
+        4. Be complete and runnable as-is.
+
+        ONLY return the Python code for the test script, enclosed in a single markdown code block. Do not include any explanatory text.
+
+        Source Code from '{source_filename}':
+        ```python
+        {source_code}
+        ```
+        """
+
+        try:
+            response = self.model.generate_content(final_prompt)
+            # Clean up the response to extract only the code block
+            code_block = response.text.strip()
+            if code_block.startswith("```python"):
+                code_block = code_block[len("```python"):].strip()
+            if code_block.endswith("```"):
+                code_block = code_block[:-len("```")].strip()
+            return code_block
+        except Exception as e:
+            return f"# An error occurred during test generation: {e}"
