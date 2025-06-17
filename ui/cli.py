@@ -21,6 +21,7 @@ from core.watcher import start_watching # 1. Add the new import at the top
 from core.agent import Agent # 1. Add the new import
 from core.user_profile import UserProfile # New import for UserProfile
 from core.skill_manager import SkillManager # New import for SkillManager
+from core.pattern_analyzer import PatternAnalyzer # New import
 
 def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
@@ -31,9 +32,10 @@ def start_cli_loop():
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass profile and memory
     automator = Automator()
     git_analyzer = GitAnalyzer()
-    agent = Agent(idea_synth=idea_synth, code_generator=code_generator) # Pass code_generator
     command_manager = CommandManager()
     skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager
+    agent = Agent(idea_synth=idea_synth, code_generator=code_generator, skill_manager=skill_manager) # Pass skill_manager
+    pattern_analyzer = PatternAnalyzer(memory_system=memory) # Instantiate PatternAnalyzer
     plugin_manager = PluginManager()
     MAX_FIX_ATTEMPTS = 3 # Define how many times to attempt self-correction
     
@@ -57,7 +59,11 @@ def start_cli_loop():
         print("  feedback <rating> [comment] - Provide feedback on the last AI output (rating: good, bad, ok).")
         print("\nSkill Commands:")
         print("  skills list                - Lists available skills.")
-        print("  skills refresh             - Refreshes the list of available skills.")
+        print("  skills refresh             - Re-scans the skills directory.")
+        print("  skills create_from_plan <SkillName> [\"trigger phrase\"] - Generates a new skill from the last executed plan.")
+        print("\nHistory Commands:")
+        print("  history analyze_patterns   - Analyzes command history for potential skill candidates.")
+        print("  history commands [limit]   - Shows recent command history (default limit 10).")
     register("help", handle_help, "Shows this help message.")
 
     # File Commands
@@ -423,16 +429,125 @@ def start_cli_loop():
 
     # Skill Commands
     def handle_skills(args):
-        if not args or args[0].lower() not in ['list', 'refresh']:
-            print("Usage: skills [list|refresh]")
+        if not args:
+            print("Usage: skills <list|refresh|create_from_plan>")
             return
+        
         action = args[0].lower()
+
         if action == "list":
             for skill_info in skill_manager.list_skills():
                 print(f"  - {skill_info['name']}: {skill_info['description']}")
         elif action == "refresh":
             skill_manager.refresh_skills()
+        elif action == "create_from_plan":
+            if len(args) < 2:
+                print("Usage: skills create_from_plan <NewSkillName> [Optional: \"trigger phrase for can_handle\"]")
+                return
+            
+            new_skill_name = args[1]
+            trigger_phrase = " ".join(args[2:]) if len(args) > 2 else None # Assumes trigger phrase is the rest
+            if trigger_phrase:
+                trigger_phrase = trigger_phrase.strip('"').strip("'")
+
+            last_plan = memory.recall('last_plan')
+            if not isinstance(last_plan, list) or not last_plan:
+                print("❌ No valid 'last_plan' found in memory to create a skill from. Please run a plan first.")
+                return
+
+            print(f"\nGenerating skill '{new_skill_name}' from the following plan:")
+            for i, step in enumerate(last_plan, 1):
+                print(f"  Step {i}: giblet {step}")
+            
+            generated_skill_code = agent.generate_skill_from_plan(last_plan, new_skill_name, trigger_phrase)
+            
+            print("\n--- Generated Skill Code ---")
+            print(generated_skill_code)
+            print("--------------------------\n")
+
+            confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
+            if confirm_save == 'y':
+                skill_filename = f"{new_skill_name.lower()}_skill.py"
+                skill_filepath = SkillManager.SKILLS_DIR / skill_filename # Use SKILLS_DIR from SkillManager
+                if utils.write_file(str(skill_filepath.relative_to(utils.WORKSPACE_DIR)), generated_skill_code): # write_file expects relative path
+                    print(f"✅ Skill '{new_skill_name}' saved to {skill_filepath}")
+                    skill_manager.refresh_skills() # Auto-refresh to load the new skill
+                else:
+                    print(f"❌ Failed to save skill '{new_skill_name}'.")
+            else:
+                print("Skill creation cancelled.")
+        else:
+            print(f"Unknown skills action: '{action}'. Valid actions: list, refresh, create_from_plan.")
     register("skills", handle_skills, "Manages and lists available agent skills.")
+
+    # Helper function for suggesting and creating skills from patterns
+    def _proactively_suggest_skill_creation_from_patterns(analyzed_patterns):
+        if not analyzed_patterns:
+            return
+
+        # For proactive suggestion, maybe only consider the top pattern or a few
+        # For simplicity, let's work with the first (most frequent/longest) pattern
+        top_pattern_sequence, top_pattern_count = analyzed_patterns[0]
+
+        print(f"\n[Proactive Suggestion] I've noticed a recurring pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times).")
+        create_skill_q = input("Would you like to try creating a skill from this pattern? (y/n): ").lower()
+        
+        if create_skill_q == 'y':
+            chosen_sequence_list = list(top_pattern_sequence)
+            skill_name_suggestion = f"Auto{chosen_sequence_list[0].capitalize()}{chosen_sequence_list[1].capitalize() if len(chosen_sequence_list) > 1 else ''}Skill"
+            new_skill_name = input(f"Enter a name for the new skill (default: {skill_name_suggestion}): ") or skill_name_suggestion
+            trigger_phrase = input(f"Enter an optional trigger phrase for '{new_skill_name}' (e.g., \"perform my common task\"): ") or None
+            
+            generated_skill_code = agent.generate_skill_from_plan(chosen_sequence_list, new_skill_name, trigger_phrase)
+            print("\n--- Generated Skill Code ---")
+            print(generated_skill_code)
+            print("--------------------------\n")
+
+            confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
+            if confirm_save == 'y':
+                safe_skill_name_for_file = "".join(c if c.isalnum() else "_" for c in new_skill_name).lower()
+                skill_filename = f"{safe_skill_name_for_file}_skill.py"
+                relative_skill_path = SKILLS_DIR.relative_to(utils.WORKSPACE_DIR) / skill_filename
+                if utils.write_file(str(relative_skill_path), generated_skill_code):
+                    print(f"✅ Skill '{new_skill_name}' saved to {SKILLS_DIR / skill_filename}")
+                    skill_manager.refresh_skills()
+                else:
+                    print(f"❌ Failed to save skill '{new_skill_name}'.")
+            else:
+                print("Skill creation from pattern cancelled.")
+
+    # History Command
+    def handle_history(args):
+        if not args or args[0].lower() not in ["commands", "analyze_patterns"]:
+            print("Usage: history <commands|analyze_patterns> [options]")
+            return
+        
+        action = args[0].lower()
+
+        if action == "commands":
+            limit = int(args[1]) if len(args) > 1 and args[1].isdigit() else 10
+            command_log = memory.retrieve(command_manager.COMMAND_LOG_KEY)
+
+            if isinstance(command_log, list) and command_log:
+                print(f"\n--- Recent Command History (Last {limit}) ---")
+                for entry in command_log[-limit:]:
+                    print(f"  [{entry.get('timestamp')}] giblet {entry.get('command')} {' '.join(entry.get('args', []))}")
+                print("--------------------------------------\n")
+            else:
+                print("No command history found.")
+        elif action == "analyze_patterns":
+            # Parameters for analysis could be added as args later
+            patterns = pattern_analyzer.analyze_command_history()
+            if patterns:
+                print("\n--- Potential Skill Candidates (Frequent Command Sequences) ---")
+                for seq, count in patterns:
+                    print(f"  - Sequence: {', '.join(seq)} (Occurred {count} times)")
+                print("-------------------------------------------------------------\n")
+                # Call the refactored suggestion logic
+                _proactively_suggest_skill_creation_from_patterns(patterns)
+            # Message if no patterns found is handled by analyze_command_history itself
+
+    register("history", handle_history, "Views command history.")
     # --- Load Plugins ---
     plugin_manager.discover_plugins()
     for plugin in plugin_manager.plugins:
@@ -449,6 +564,9 @@ def start_cli_loop():
 
     print("🧠 The Giblet is awake. All commands registered. Type 'help' for a list of commands.")
     
+    command_execution_count = 0
+    PROACTIVE_ANALYSIS_THRESHOLD = 5 # Analyze patterns every N commands
+
     while True:
         try:
             # Dynamic prompt logic...
@@ -469,6 +587,14 @@ def start_cli_loop():
                 args = parts[1].split() if len(parts) > 1 else []
             
             command_manager.execute(command_name, args)
+            command_execution_count += 1
+
+            if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
+                # print("\n[Proactive Check] Analyzing command history for patterns...") # Optional: can be noisy
+                # Use a higher min_occurrences for proactive suggestions to reduce noise
+                patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
+                if patterns:
+                    _proactively_suggest_skill_creation_from_patterns(patterns)
 
         except KeyboardInterrupt:
             print("\n🧠 Going to sleep. Goodbye!")

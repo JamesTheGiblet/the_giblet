@@ -39,6 +39,7 @@ class IdeaSynthesizer:
         company_name = self.user_profile.get_preference("general", "company_name", "their project")
         coding_style_summary = self.user_profile.get_preference("coding_style", "summary", "standard conventions")
         idea_persona = self.user_profile.get_preference("llm_settings", "idea_synth_persona", "creative and helpful")
+        creativity_level = self.user_profile.get_preference("llm_settings", "idea_synth_creativity", 3)
 
         print(f"🎨 Synthesizing ideas for '{user_name}' regarding: '{prompt}'...")
 
@@ -55,13 +56,24 @@ class IdeaSynthesizer:
             Format the output clearly.
             """
         else:
+            creativity_description = "balanced between practical and novel"
+            if creativity_level == 1:
+                creativity_description = "highly practical and conventional"
+            elif creativity_level == 2:
+                creativity_description = "mostly practical with a touch of novelty"
+            elif creativity_level == 4:
+                creativity_description = "leaning towards novel and experimental"
+            elif creativity_level == 5:
+                creativity_description = "highly experimental and unconventional"
+
             final_prompt = f"""
             User prompt: "{prompt}"
             This is for a user named {user_name} working on {company_name}.
             They generally prefer a coding style described as: {coding_style_summary}.
             
             Adopt the following persona for your response: "{idea_persona}".
-            Brainstorm three distinct and practical solutions or ideas based on the user's prompt, keeping this persona in mind.
+            Your approach to creativity should be: "{creativity_description}".
+            Brainstorm three distinct solutions or ideas based on the user's prompt, keeping this persona and creativity level in mind.
             For each idea, briefly list its pros and cons.
             Format the output clearly.
             """

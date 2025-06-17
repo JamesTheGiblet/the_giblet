@@ -167,3 +167,19 @@ class Memory:
         except Exception as e:
             print(f"❌ Could not load local checkpoint: {e}")
             return False
+        
+    def append_to_log(self, log_key: str, entry: dict, max_log_entries: int = 1000):
+        """
+        Appends an entry to a list stored under log_key in long-term memory.
+        Manages log size by keeping only the most recent entries.
+        """
+        log_data = self.retrieve(log_key)
+        if not isinstance(log_data, list):
+            log_data = []
+        
+        log_data.append(entry)
+        
+        # Keep the log from growing indefinitely
+        if len(log_data) > max_log_entries:
+            log_data = log_data[-max_log_entries:]
+        self.commit(log_key, log_data)

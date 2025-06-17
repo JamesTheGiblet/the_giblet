@@ -27,13 +27,15 @@ app = FastAPI(
 memory = Memory()
 roadmap_manager = RoadmapManager(memory_system=memory)
 user_profile = UserProfile(memory_system=memory) # Instantiate UserProfile
+# Instantiate CommandManager for the API, passing the memory system
+command_manager_for_api = command_manager.CommandManager(memory_system=memory)
 # command_manager is initialized here but has no commands registered by default.
 # For the /agent/execute endpoint to work, this command_manager needs relevant commands.
 automator = Automator() # <<< NEW INSTANCE
 idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile, memory_system=memory) # Pass memory
 code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass memory
-skill_manager_for_api = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager for API
-agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator) # Instantiate Agent for API
+skill_manager_for_api = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager_for_api) 
+agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) # Pass skill_manager
 
 # --- Define Request/Response Models ---
 class GenerationRequest(BaseModel):
@@ -89,6 +91,14 @@ class FeedbackRequest(BaseModel):
 class LastInteractionResponse(BaseModel):
     interaction: dict | None = None
     message: str | None = None
+
+# Pydantic model for setting focus
+class SetFocusRequest(BaseModel):
+    focus_text: str | None = None # Allow None to clear focus
+
+class FocusResponse(BaseModel):
+    current_focus: str | None = None
+    message: str
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -216,6 +226,26 @@ def submit_feedback_endpoint(request: FeedbackRequest):
     return ProfileResponse(message=f"Feedback ('{request.rating}') submitted successfully.")
 
 
+# --- Memory/Focus API Endpoints ---
+@app.get("/memory/focus", response_model=FocusResponse)
+def get_focus_endpoint():
+    current_focus = memory.recall("current_focus")
+    if isinstance(current_focus, str) and not current_focus.startswith("I don't have a memory for"):
+        return FocusResponse(current_focus=current_focus, message="Current focus retrieved.")
+    return FocusResponse(current_focus=None, message="No current focus is set.")
+
+@app.post("/memory/focus", response_model=FocusResponse)
+def set_focus_endpoint(request: SetFocusRequest):
+    if request.focus_text is None or request.focus_text.strip() == "":
+        memory.remember("current_focus", None) # Clear focus
+        return FocusResponse(current_focus=None, message="Focus cleared.")
+    else:
+        memory.remember("current_focus", request.focus_text)
+        return FocusResponse(current_focus=request.focus_text, message=f"Focus set to: {request.focus_text}")
+
+
+
+
 # --- Skill API Endpoints ---
 @app.get("/skills/list")
 def list_skills_endpoint():
@@ -273,7 +303,8 @@ def agent_execute_plan_endpoint():
         command_name = parts[0].lower()
         cmd_args = parts[1:]
 
-        execution_result = command_manager.execute(command_name, cmd_args)
+        # Use the API's instance of CommandManager
+        execution_result = command_manager_for_api.execute(command_name, cmd_args)
 
         return_code, stdout, stderr = 0, "", ""
         if isinstance(execution_result, tuple) and len(execution_result) == 3:
@@ -284,7 +315,8 @@ def agent_execute_plan_endpoint():
         if is_test_step and return_code != 0:
             tests_failed_count +=1
             current_error_log = stdout + stderr
-            current_return_code = return_code
+            # Use the API's instance of CommandManager
+            current_return_code, retry_stdout, retry_stderr = command_manager_for_api.execute("exec", cmd_args)
 
             for attempt in range(MAX_API_FIX_ATTEMPTS):
                 fix_attempts_count += 1

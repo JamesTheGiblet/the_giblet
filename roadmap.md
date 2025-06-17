@@ -313,21 +313,44 @@ python main.py
         * Created a base `Skill` class with `can_handle`, `get_parameters_needed`, and `execute` methods.
     * [x] **Task 17.1.2: Create a `SkillManager` Class (`core.skill_manager.SkillManager`)**
         * Implemented `SkillManager` to discover, load, and list skills from a `skills/` directory.
-    * [ ] **Task 17.1.3: Implement Basic Skill Validation in `SkillManager`**
+    * [🚧] **Task 17.1.3: Implement Basic Skill Validation in `SkillManager`**
         * Add checks for adherence to the `Skill` interface and metadata during discovery.
-* [ ] **Task 17.2: Implement Dynamic Skill Invocation in Agent Planning**
+* [🚧] **Task 17.2: Implement Dynamic Skill Invocation in Agent Planning & Execution**
     * Enhance the agent's `create_plan` method to recognize when a user's high-level goal can be achieved by invoking one or more predefined "skills".
-* [ ] **Task 17.3: Develop Proactive Skill Creation & Suggestion Mechanism**
+    * [x] **Task 17.2.1: Make Agent `create_plan` Skill-Aware**
+        * Updated `Agent.create_plan` to fetch available skills and include them in the LLM prompt.
+    * [x] **Task 17.2.2: Update Execution Logic to Handle `skill` Commands**
+        * Modified `handle_execute` in CLI to parse and run `skill <SkillName> [params...]` commands.
+* [🚧] **Task 17.3: Develop Proactive Skill Creation & Suggestion Mechanism**
     * Implement pattern detection, LLM-powered skill generation, automated testing, and user confirmation for new skills.
+    * [x] **Task 17.3.1: Implement CLI Command for User-Initiated Skill Generation from Plan**
+        * Added `skills create_from_plan <Name> ["trigger"]` command.
+    * [x] **Task 17.3.2: Implement Agent Method to Generate Skill Code via LLM**
+        * Created `Agent.generate_skill_from_plan()` to prompt LLM for skill code based on a plan and skill creation guide.
+    * [🚧] **Task 17.3.3: Implement Command History Logging**
+        * Enhanced `CommandManager` to log executed commands (name, args, timestamp) to persistent memory.
+    * [x] **Task 17.3.4: Develop Basic Command History Viewer**
+        * Created a CLI command `history commands` to view the logged command history.
+    * [x] **Task 17.3.5: Develop Basic Pattern Analyzer for Command History**
+        * Implemented `PatternAnalyzer` to find frequent command sequences from the log.
+    * [🚧] **Task 17.3.6: Implement Proactive Skill Suggestion based on Pattern Analysis**
+        * Enhanced `history analyze_patterns` to allow users to select a detected pattern and generate a skill from it.
+        * Added basic proactive suggestion trigger in CLI main loop.
 
 ---
 ## Phase 18: ✨ The Vibe-Centric Visual Cockpit
-* [ ] **Task 18.1: Redesign Dashboard for "Vibe Coding" Principles**
+* [🚧] **Task 18.1: Redesign Dashboard for "Vibe Coding" Principles**
     * Re-evaluate and iterate on the dashboard's UI/UX to minimize friction and align with a more intuitive, "vibe-driven" interaction style.
+    * [x] **Task 18.1.1: Implement "Quick Actions & Focus Bar" in Dashboard Sidebar**
+        * Added a sidebar to display and manage the current session focus, and for future quick action buttons.
 * [ ] **Task 18.2: Implement Visual Task Decomposition & Planning Interface**
     * Create a dashboard component where users can visually break down high-level goals or see the agent's generated plan in a graphical format.
-* [ ] **Task 18.3: Introduce Interactive "Vibe Sliders" for AI Behavior**
+* [🚧] **Task 18.3: Introduce Interactive "Vibe Sliders" for AI Behavior**
     * Add UI controls in the dashboard that allow the user to directly influence AI parameters (e.g., creativity, verbosity), linked to the `UserProfile`.
+    * [x] **Task 18.3.1: Add UI Controls for IdeaSynthesizer Persona and Creativity**
+        * Implemented selectbox for persona and slider for creativity level in the dashboard's Profile tab.
+    * [x] **Task 18.3.2: Integrate IdeaSynthesizer Creativity into Prompting**
+        * Modified `IdeaSynthesizer` to use the `idea_synth_creativity` profile setting.
 
 ---
 ## Phase 19: 🔑 The Universal LLM Connector

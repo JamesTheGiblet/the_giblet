@@ -47,6 +47,50 @@ def main():
 
     st.title("🧠 The Giblet: Project Cockpit")
 
+    # --- Sidebar for Quick Actions & Focus ---
+    with st.sidebar:
+        st.header("🚀 Quick Actions")
+
+        # Display and Manage Focus
+        st.subheader("🎯 Current Focus")
+        
+        # Function to fetch current focus
+        def fetch_current_focus():
+            try:
+                response = httpx.get("http://localhost:8000/memory/focus", timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                st.session_state.dashboard_current_focus = data.get("current_focus")
+            except Exception as e:
+                # Don't show error here, might be too noisy if API is temporarily down
+                st.session_state.dashboard_current_focus = None 
+
+        if 'dashboard_current_focus' not in st.session_state:
+            fetch_current_focus() # Initial fetch
+
+        if st.session_state.get('dashboard_current_focus'):
+            st.info(f"{st.session_state.dashboard_current_focus}")
+        else:
+            st.caption("No focus set. Use the field below or the CLI.")
+
+        new_focus_text = st.text_input("Set new focus:", key="sidebar_focus_input", placeholder="e.g., 'Refactoring the auth module'")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Set Focus", key="sidebar_set_focus_btn", use_container_width=True):
+                if new_focus_text.strip():
+                    httpx.post("http://localhost:8000/memory/focus", json={"focus_text": new_focus_text}, timeout=5)
+                    fetch_current_focus() # Refresh
+                    st.experimental_rerun() # Rerun to update display immediately
+        with col2:
+            if st.button("Clear Focus", key="sidebar_clear_focus_btn", use_container_width=True):
+                httpx.post("http://localhost:8000/memory/focus", json={"focus_text": None}, timeout=5) # Send None or empty to clear
+                fetch_current_focus() # Refresh
+                st.experimental_rerun() # Rerun to update display immediately
+        
+        st.divider()
+        # Add more quick action buttons here later, e.g., for Generate Ideas, Generate Plan
+
     # <<< UPDATED: Add a new tab for the refactor tool
     tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile"]) # New Profile tab
 
@@ -432,6 +476,55 @@ def main():
                 else:
                     st.warning("Category and Key are required to set a preference.")
         
+        st.divider()
+        st.subheader("AI Vibe & Behavior Settings")
+
+        # Helper to update profile via API and refresh
+        def update_profile_setting(category, key, value):
+            try:
+                payload = {"category": category, "key": key, "value": str(value)} # Ensure value is string for API
+                response = httpx.post("http://localhost:8000/profile/set", json=payload, timeout=10)
+                response.raise_for_status()
+                # st.toast(f"{category}.{key} updated to {value}!", icon="🎉") # Subtle notification
+                fetch_profile() # Refresh profile data in session state
+                return True
+            except Exception as e:
+                st.error(f"Failed to update {category}.{key}: {sanitize_for_display(str(e))}")
+                return False
+
+        # IdeaSynthesizer Settings
+        st.markdown("##### Idea Synthesizer")
+        idea_personas = ["creative and helpful", "analytical and detailed", "concise and direct", "slightly sarcastic but brilliant", "formal academic researcher", "Custom"]
+        current_idea_persona = st.session_state.user_profile_data.get("llm_settings", {}).get("idea_synth_persona", idea_personas[0])
+        
+        selected_idea_persona = st.selectbox(
+            "Persona", options=idea_personas, 
+            index=idea_personas.index(current_idea_persona) if current_idea_persona in idea_personas else idea_personas.index("Custom"), 
+            key="idea_persona_select"
+        )
+        custom_idea_persona = current_idea_persona
+        if selected_idea_persona == "Custom":
+            custom_idea_persona = st.text_input("Enter Custom Idea Persona:", value=current_idea_persona if current_idea_persona not in idea_personas[:-1] else "", key="custom_idea_persona_input")
+        
+        final_idea_persona = custom_idea_persona if selected_idea_persona == "Custom" else selected_idea_persona
+        if final_idea_persona != current_idea_persona:
+            if update_profile_setting("llm_settings", "idea_synth_persona", final_idea_persona):
+                 st.success(f"IdeaSynthesizer Persona updated to: {final_idea_persona}")
+
+        current_creativity = int(st.session_state.user_profile_data.get("llm_settings", {}).get("idea_synth_creativity", 3))
+        new_creativity = st.slider("Creativity Level (1=Practical, 5=Experimental)", 1, 5, current_creativity, key="idea_creativity_slider")
+        if new_creativity != current_creativity:
+            if update_profile_setting("llm_settings", "idea_synth_creativity", new_creativity):
+                st.success(f"IdeaSynthesizer Creativity updated to: {new_creativity}")
+
+        # CodeGenerator Settings (Example for persona)
+        st.markdown("##### Code Generator")
+        code_gen_personas = ["expert Python programmer", "beginner-friendly explainer", "performance-focused engineer", "security-conscious developer", "Custom"]
+        current_cg_persona = st.session_state.user_profile_data.get("llm_settings", {}).get("code_gen_persona", code_gen_personas[0])
+        # ... (similar selectbox and custom input logic for code_gen_persona as for idea_synth_persona) ...
+        # For brevity, I'll omit the full duplication, but it would follow the same pattern.
+        # You would then call update_profile_setting("llm_settings", "code_gen_persona", new_cg_persona)
+
         st.divider()
         st.subheader("Clear Profile")
         if st.button("Clear Entire User Profile", type="secondary", key="clear_profile_btn"):

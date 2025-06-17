@@ -62,14 +62,34 @@ class SkillManager:
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
                     for name, obj in inspect.getmembers(module):
-                        if inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill:
-                            # Instantiate the skill, passing necessary dependencies
-                            skill_instance = obj(self.user_profile, self.memory, self.command_manager)
-                            if hasattr(skill_instance, 'NAME') and skill_instance.NAME not in self.skills:
-                                self.skills[skill_instance.NAME] = skill_instance
-                                print(f"   ✅ Loaded skill: {skill_instance.NAME} from {filepath.name}")
-                            else:
-                                print(f"   ⚠️ Skill name conflict or missing NAME attribute in {filepath.name}")
+                        if inspect.isclass(obj) and issubclass(obj, Skill) and obj is not Skill: # It's a potential skill class
+                            # Basic Validation Checks
+                            if not hasattr(obj, 'NAME') or not isinstance(obj.NAME, str) or not obj.NAME or obj.NAME == Skill.NAME:
+                                print(f"   ⚠️ Skill class '{obj.__name__}' in {filepath.name} is missing a valid NAME attribute or uses the default. Skipping.")
+                                continue
+                            if not hasattr(obj, 'DESCRIPTION') or not isinstance(obj.DESCRIPTION, str) or not obj.DESCRIPTION or obj.DESCRIPTION == Skill.DESCRIPTION:
+                                print(f"   ⚠️ Skill class '{obj.NAME}' in {filepath.name} is missing a valid DESCRIPTION. Skipping.")
+                                continue
+                            
+                            # Check if essential methods are implemented (not just inherited from base)
+                            if obj.can_handle == Skill.can_handle:
+                                print(f"   ⚠️ Skill '{obj.NAME}' in {filepath.name} must implement 'can_handle'. Skipping.")
+                                continue
+                            if obj.execute == Skill.execute:
+                                print(f"   ⚠️ Skill '{obj.NAME}' in {filepath.name} must implement 'execute'. Skipping.")
+                                continue
+                            # get_parameters_needed can be optional if it returns [] by default, so no strict check here unless desired.
+
+                            try:
+                                # Instantiate the skill, passing necessary dependencies
+                                skill_instance = obj(self.user_profile, self.memory, self.command_manager)
+                                if skill_instance.NAME not in self.skills:
+                                    self.skills[skill_instance.NAME] = skill_instance
+                                    print(f"   ✅ Loaded skill: {skill_instance.NAME} from {filepath.name}")
+                                else:
+                                    print(f"   ⚠️ Skill name conflict: '{skill_instance.NAME}' from {filepath.name} already loaded. Skipping.")
+                            except Exception as instantiation_e:
+                                print(f"   ❌ Error instantiating skill '{obj.NAME}' from {filepath.name}: {instantiation_e}. Skipping.")
             except Exception as e:
                 print(f"   ❌ Error loading skill from {filepath.name}: {e}")
 

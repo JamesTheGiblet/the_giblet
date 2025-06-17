@@ -16,7 +16,8 @@ DEFAULT_PROFILE_STRUCTURE = {
     },
     "llm_settings": {
         "idea_synth_persona": "creative and helpful", # Default persona
-        "code_gen_persona": "expert Python programmer"
+        "code_gen_persona": "expert Python programmer",
+        "idea_synth_creativity": 3 # A scale, e.g., 1 (very practical) to 5 (very experimental)
     }
 }
 
