@@ -197,16 +197,23 @@ python main.py
 
 ---
 ## Phase 7: 🎨 The Visual Canvas (Dashboard)
-* [ ] **Task 7.1: Set Up Basic Streamlit Application**
-* [ ] **Task 7.2: Build Interactive Roadmap Visualization**
-* [ ] **Task 7.3: Create Git History Dashboard Page**
-* [ ] **Task 7.4: Implement 'Idea Synth' Playground UI**
+* [x] **Task 7.1: Set Up Basic Streamlit Application**
+    * This established the foundational web interface for visualizing project data and interacting with The Giblet's features.
+* [x] **Task 7.2: Build Interactive Roadmap Visualization**
+    * This created a dynamic view of the `roadmap.md` file, allowing for easy tracking of project phases and task completion within the dashboard.
+* [x] **Task 7.3: Create Git History Dashboard Page**
+    * This integrated Git analysis to display recent commit history, providing a quick overview of code changes and contributions.
+* [x] **Task 7.4: Implement 'Idea Synth' Playground UI**
+    * This added an interactive section to the dashboard for leveraging the `IdeaSynthesizer` to brainstorm and explore new concepts.
 
 ---
 ## Phase 8: 🛠️ Proactive Builder Engine
-* [ ] **Task 8.1: Implement Advanced `code_gen` Module**
-* [ ] **Task 8.2: Implement `Autogen Web UI` (Proof of Concept)**
-* [ ] **Task 8.3: Implement `refactor` command**
+* [x] **Task 8.1: Implement Advanced `code_gen` Module**
+    * This enhanced the `CodeGenerator` to produce more robust Python functions and laid the groundwork for more complex code manipulations.
+* [x] **Task 8.2: Implement `Autogen Web UI` (Proof of Concept)**
+    * This introduced the capability to automatically generate basic Streamlit UIs from Python data class definitions, accessible via the `build ui` CLI command.
+* [x] **Task 8.3: Implement `refactor` command**
+    * This added a CLI command (`refactor <file> "<instruction>"`) allowing The Giblet to intelligently refactor existing code based on user instructions.
 
 ---
 ## Phase 9: 🔌 The Plugin SDK

@@ -5,6 +5,7 @@ from core.roadmap_manager import RoadmapManager
 from core.automator import Automator
 from core.idea_synth import IdeaSynthesizer # <<< NEW IMPORT
 from core.git_analyzer import GitAnalyzer # <<< NEW IMPORT
+from core.code_generator import CodeGenerator # <<< NEW IMPORT
 import logging # <<< NEW IMPORT
 import subprocess # <<< NEW IMPORT
 import sys # <<< NEW IMPORT
@@ -17,6 +18,12 @@ def print_help():
     print("\nCreative Commands:")
     print("  dashboard              - Launches the web-based visual dashboard.") # <<< NEW
     print("  idea \"<prompt>\"          - Brainstorms practical ideas for a prompt.")
+
+    # <<< NEW SECTION
+    print("\nCode Generation Commands:") # <<< NEW SECTION
+    print("  generate function \"<desc>\"   - Generates a Python function from a description.")
+    print("  build ui <filepath>          - Generates a Streamlit UI from a data class file.")
+    print("  refactor <file> \"<instr>\" - Refactors code in a file based on an instruction.") # <<< NEW
     print("  idea --weird \"<prompt>\"  - Brainstorms weird and unconventional ideas.")
 
     # <<< NEW SECTION
@@ -63,6 +70,7 @@ def start_cli_loop():
     idea_synth = IdeaSynthesizer() # <<< NEW: Initialize the Idea Synthesizer
     automator = Automator() # <<< NEW
     git_analyzer = GitAnalyzer() # <<< NEW
+    code_generator = CodeGenerator() # <<< NEW
     print("🧠 The Giblet is awake. Type 'help' for a list of commands.")
     
     while True:
@@ -175,6 +183,62 @@ def start_cli_loop():
                     print("-------------------------------------\n")
                 else:
                     print("Unknown git command. Try 'status', 'branches', 'log', or 'summary'.")
+
+            # <<< NEW: Generate command block
+            elif command == "generate":
+                if arg1 == "function":
+                    if not arg2: print("Usage: generate function \"<description of function>\"")
+                    else:
+                        print("Please wait while The Giblet generates the code...")
+                        generated_code = code_generator.generate_function(arg2.strip('"'))
+                        print("\n--- Generated Code ---")
+                        print(generated_code)
+                        print("----------------------\n")
+                else:
+                    print(f"Unknown generate command: '{arg1}'. Try 'function'.")
+                    print("Unknown git command. Try 'status', 'branches', 'log', or 'summary'.")
+            # <<< NEW: Build command block
+            elif command == "build":
+                if arg1 == "ui":
+                    if not arg2:
+                        print("Usage: build ui <path_to_python_file>")
+                    else:
+                        source_code = utils.read_file(arg2)
+                        if source_code:
+                            print("Please wait while The Giblet builds the UI...")
+                            generated_ui = code_generator.generate_streamlit_ui(source_code, arg2)
+                            
+                            output_filename = f"ui_for_{arg2.replace('.py', '')}.py"
+                            utils.write_file(output_filename, generated_ui)
+                            print(f"\n✅ Successfully generated UI. Saved to '{output_filename}'")
+                            print(f"   To run it, exit The Giblet and use the command: streamlit run {output_filename}")
+                else:
+                    print(f"Unknown build command: '{arg1}'. Try 'ui'.")
+            
+            # <<< NEW: Refactor command block
+            elif command == "refactor":
+                if not arg1 or not arg2:
+                    print("Usage: refactor <filepath> \"<instruction>\"")
+                else:
+                    filepath = arg1
+                    instruction = arg2.strip('"')
+                    
+                    original_code = utils.read_file(filepath)
+                    if original_code:
+                        print("Please wait while The Giblet refactors the code...")
+                        refactored_code = code_generator.refactor_code(original_code, instruction)
+                        
+                        print("\n--- Proposed Refactoring ---")
+                        print(refactored_code)
+                        print("--------------------------\n")
+
+                        confirm = input(f"Overwrite '{filepath}' with this refactored code? (y/n): ").lower()
+                        if confirm == 'y':
+                            utils.write_file(filepath, refactored_code)
+                            print(f"✅ File '{filepath}' has been updated.")
+                        else:
+                            print("❌ Refactoring cancelled.")
+            
             # <<< NEW: Automate command block
             elif command == "automate":
                 if arg1 == "stubs":

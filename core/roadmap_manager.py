@@ -2,16 +2,18 @@
 import re
 from pathlib import Path
 
-# Define the path to our roadmap file
+# (The ROADMAP_FILE definition is the same)
 ROADMAP_FILE = Path(__file__).parent.parent / "roadmap.md"
 
 class RoadmapManager:
     def __init__(self, memory_system):
+        # (__init__ is the same)
         self.memory = memory_system
         self.tasks = self._load_and_parse_roadmap()
         print("🗺️ Roadmap Manager initialized.")
 
     def _load_and_parse_roadmap(self) -> list[dict]:
+        # (_load_and_parse_roadmap is the same)
         if not ROADMAP_FILE.exists():
             print("⚠️ Roadmap file not found.")
             return []
@@ -28,6 +30,7 @@ class RoadmapManager:
         return tasks
 
     def view_roadmap(self):
+        # (view_roadmap is the same)
         if not self.tasks:
             print("No tasks found in roadmap.")
             return
@@ -37,25 +40,20 @@ class RoadmapManager:
             print(f" {icon} {task['description']}")
         print("-----------------------\n")
 
-    # <<< NEW METHOD
     def complete_task(self, task_description: str) -> bool:
-        """Finds a task by its description and marks it as complete in the .md file."""
+        # (complete_task is the same)
         print(f"🗺️ Attempting to complete task: '{task_description}'...")
-        
         try:
             lines = ROADMAP_FILE.read_text(encoding='utf-8').splitlines()
             task_found = False
             for i, line in enumerate(lines):
-                # Check if this line is the task we are looking for and is incomplete
                 if task_description in line and line.strip().startswith('* [ ]'):
                     lines[i] = line.replace('* [ ]', '* [x]', 1)
                     task_found = True
                     break
-            
             if task_found:
                 ROADMAP_FILE.write_text('\n'.join(lines) + '\n', encoding='utf-8')
                 print(f"✅ Task '{task_description}' marked as complete.")
-                # Refresh the internal task list
                 self.tasks = self._load_and_parse_roadmap()
                 return True
             else:
@@ -64,3 +62,8 @@ class RoadmapManager:
         except Exception as e:
             print(f"❌ An error occurred while updating the roadmap: {e}")
             return False
+
+    # <<< NEW METHOD
+    def get_tasks(self) -> list[dict]:
+        """Returns the current list of parsed tasks."""
+        return self.tasks
