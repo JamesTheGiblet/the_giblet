@@ -188,8 +188,10 @@ python main.py
 
 ---
 ## Phase 6: 🌀 Git-Awareness Engine
-* [ ] **Task 6.1: Implement Advanced Git Functions**
-* [ ] **Task 6.2: Create AI-Powered Repo Summarizer**
+* [x] **Task 6.1: Implement Advanced Git Functions**
+    * Implemented core Git analysis functions within the `GitAnalyzer` class, enabling status checks, branch listing, and retrieval of commit logs directly from the CLI.
+* [x] **Task 6.2: Create AI-Powered Repo Summarizer**
+    * Integrated the `IdeaSynthesizer` with `GitAnalyzer` to provide AI-generated summaries of recent repository activity, offering high-level insights into project progress.
 * [ ] **Task 6.3: Implement Contextual Vibe Mode (Git Branch)**
 
 ---

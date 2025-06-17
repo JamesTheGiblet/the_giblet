@@ -57,3 +57,19 @@ class IdeaSynthesizer:
             return response.text
         except Exception as e:
             return f"❌ An error occurred during idea generation: {e}"
+
+    # <<< NEW, more general-purpose method
+    def generate_text(self, prompt: str) -> str:
+        """
+        Generates a direct text response from the model based on a given prompt.
+        """
+        if not self.model:
+            return "Idea Synthesizer is not available."
+
+        print(f"🎨 Generating text for prompt...") # Consider logging the prompt if it's not too long/sensitive
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            # Consider logging the full exception 'e' here for debugging
+            return f"❌ An error occurred during text generation: {e}"

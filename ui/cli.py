@@ -4,6 +4,7 @@ from core.memory import Memory
 from core.roadmap_manager import RoadmapManager
 from core.automator import Automator
 from core.idea_synth import IdeaSynthesizer # <<< NEW IMPORT
+from core.git_analyzer import GitAnalyzer # <<< NEW IMPORT
 import logging # <<< NEW IMPORT
 
 def print_help():
@@ -15,6 +16,12 @@ def print_help():
     print("  idea \"<prompt>\"          - Brainstorms practical ideas for a prompt.")
     print("  idea --weird \"<prompt>\"  - Brainstorms weird and unconventional ideas.")
 
+    # <<< NEW SECTION
+    print("\nGit Commands:")
+    print("  git status             - Shows if there are uncommitted changes.")
+    print("  git branches           - Lists all local branches.")
+    print("  git log                - Shows the 5 most recent commit messages.")
+    print("  git summary            - Generates an AI summary of recent commits.") # <<< NEW
     # <<< NEW SECTION
     print("\nWorkflow Commands:")
     print("  focus \"<your task>\"      - Sets your current task focus in the session.")
@@ -52,6 +59,7 @@ def start_cli_loop():
     roadmap_manager = RoadmapManager(memory_system=memory)
     idea_synth = IdeaSynthesizer() # <<< NEW: Initialize the Idea Synthesizer
     automator = Automator() # <<< NEW
+    git_analyzer = GitAnalyzer() # <<< NEW
     print("🧠 The Giblet is awake. Type 'help' for a list of commands.")
     
     while True:
@@ -132,6 +140,26 @@ def start_cli_loop():
                 else:
                     print(f"Unknown roadmap command: '{arg1}'. Try 'roadmap done \"<description>\"' or just 'roadmap'.")
 
+            # <<< NEW: Git command block
+            elif command == "git":
+                if arg1 == "status":
+                    print(f"👁️  Branch Status: {git_analyzer.get_branch_status()}")
+                elif arg1 == "branches":
+                    branches = git_analyzer.list_branches()
+                    print("👁️  Available branches:\n - " + "\n - ".join(branches))
+                elif arg1 == "log":
+                    log = git_analyzer.get_commit_log()
+                    print("👁️  Recent Commits:")
+                    for commit in log:
+                        print(f"  - [{commit['date']}] {commit['sha']} - {commit['message']} ({commit['author']})")
+                # <<< NEW
+                elif arg1 == "summary":
+                    summary = git_analyzer.summarize_recent_activity(idea_synth)
+                    print("\n--- AI Summary of Recent Activity ---")
+                    print(summary)
+                    print("-------------------------------------\n")
+                else:
+                    print("Unknown git command. Try 'status', 'branches', 'log', or 'summary'.")
             # <<< NEW: Automate command block
             elif command == "automate":
                 if arg1 == "stubs":
