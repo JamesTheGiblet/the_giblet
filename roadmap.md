@@ -186,11 +186,11 @@ python main.py
 
 **Goal:** Finalize The Giblet into a usable prototype with validation, tests, and modular loading.
 **Success looks like:** The entire system is testable with one command and outputs helpful error/debug info.
-* [ ] **Task 5.1: Add Unit Tests**
+* [x] **Task 5.1: Add Unit Tests**
     * `tests/test_all.py`: covers each core module.
-* [ ] **Task 5.2: Add In-CLI Error Handling & Debugging**
+* [x] **Task 5.2: Add In-CLI Error Handling & Debugging**
     * Graceful crash recovery with traceback logging.
-* [ ] **Task 5.3: Autogenerate Changelog**
+* [x] **Task 5.3: Autogenerate Changelog**
     * Pull commits/changes into a Markdown log.
 
 ---

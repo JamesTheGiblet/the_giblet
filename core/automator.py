@@ -75,17 +75,24 @@ class Automator:
             repo = git.Repo(search_parent_directories=True)
             changelog_content = ["# Project Changelog\n"]
             
-            commits = list(repo.iter_commits('main', max_count=50)) # Consider making 'main' configurable or detecting default branch
+            # <<< FIX: Don't assume the branch name. Get it from the repo directly.
+            active_branch = repo.active_branch
+            print(f"   (Found active branch: '{active_branch.name}')")
+            
+            commits = list(repo.iter_commits(active_branch.name, max_count=50))
             for commit in commits:
                 commit_time = datetime.fromtimestamp(commit.committed_date).strftime('%Y-%m-%d %H:%M:%S')
                 line = f"## [{commit.hexsha[:7]}] - {commit_time}\n"
                 line += f"**Author:** {commit.author.name}\n\n"
-                line += f"> {commit.message.strip()}\n" # Ensure proper markdown blockquote for multi-line messages
+                # Ensure proper markdown blockquote for multi-line messages by prefixing each line
+                commit_message_lines = commit.message.strip().splitlines()
+                formatted_message = "\n".join([f"> {msg_line}" for msg_line in commit_message_lines])
+                line += f"{formatted_message}\n"
                 changelog_content.append(line)
             
             changelog_dir = Path(__file__).parent.parent / "data" / "changelogs" # Ensure 'data' directory exists
             changelog_dir.mkdir(parents=True, exist_ok=True) # Create directory if it doesn't exist
-            changelog_file = changelog_dir / f"CHANGELOG_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md" # Added time to filename for uniqueness
+            changelog_file = changelog_dir / f"CHANGELOG_{active_branch.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md" # Added time and branch to filename
             
             changelog_file.write_text('\n'.join(changelog_content), encoding='utf-8')
             print(f"✅ Changelog saved successfully to {changelog_file}")
@@ -93,7 +100,6 @@ class Automator:
         except git.InvalidGitRepositoryError:
             print("❌ This project is not a valid Git repository, or git is not installed/configured correctly.")
             print("   Please ensure you are in a git project and the 'git' command is accessible in your PATH.")
-            return False
         except Exception as e:
             print(f"❌ An error occurred during changelog generation: {e}")
             return False
