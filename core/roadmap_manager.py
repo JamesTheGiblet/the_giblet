@@ -1,6 +1,9 @@
 # core/roadmap_manager.py
 import re
 from pathlib import Path
+import uuid # <<< NEW IMPORT at the top of the file
+import json # <<< NEW IMPORT at the top of the file
+from datetime import datetime # Ensure datetime is imported
 
 # (The ROADMAP_FILE definition is the same)
 ROADMAP_FILE = Path(__file__).parent.parent / "roadmap.md"
@@ -67,3 +70,39 @@ class RoadmapManager:
     def get_tasks(self) -> list[dict]:
         """Returns the current list of parsed tasks."""
         return self.tasks
+
+    # <<< NEW METHODS for shared tasks
+    def add_shared_task(self, description: str, assignee: str) -> str | None:
+        """Adds a task to the shared list in Redis."""
+        if not self.memory.redis_client:
+            print("❌ Shared tasks require the Redis memory backend.")
+            return None
+
+        task_id = f"task:{uuid.uuid4()}"
+        task_data = {
+            "description": description,
+            "assignee": assignee,
+            "status": "open",
+            "created_at": datetime.now().isoformat()
+        }
+        # Use a Redis Hash to store all shared tasks
+        self.memory.redis_client.hset("giblet:shared_tasks", task_id, json.dumps(task_data))
+        print(f"✅ Shared task added for {assignee}.")
+        return task_id
+
+    def view_shared_tasks(self) -> list[dict]:
+        """Views all tasks from the shared list in Redis."""
+        if not self.memory.redis_client:
+            print("❌ Shared tasks require the Redis memory backend.")
+            return []
+
+        tasks_data = self.memory.redis_client.hgetall("giblet:shared_tasks")
+
+        tasks = []
+        for task_id, task_json in tasks_data.items():
+            task = json.loads(task_json)
+            task['id'] = task_id
+            tasks.append(task)
+
+        # Sort by creation date
+        return sorted(tasks, key=lambda t: t['created_at'])

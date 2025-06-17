@@ -3,3 +3,7 @@ python-dotenv
 pytest
 langchain
 langchain_community
+redis
+streamlit
+fastapi
+uvicorn[standard]

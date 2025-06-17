@@ -5,6 +5,7 @@ import sys
 import webbrowser
 import time
 from pathlib import Path
+import shlex # <<< NEW IMPORT
 
 # --- Core Module Imports ---
 from core import utils
@@ -91,6 +92,45 @@ def start_cli_loop():
     register("generate", handle_generate, "Generates code or tests.")
     register("build", lambda args: utils.write_file(f"ui_for_{Path(args[1]).stem}.py", code_generator.generate_streamlit_ui(utils.read_file(args[1]), args[1])) if len(args) > 1 and args[0] == 'ui' else print("Usage: build ui <filepath>"), "Builds a UI from a data model.")
     register("refactor", lambda args: utils.write_file(args[0], code_generator.refactor_code(utils.read_file(args[0]), args[1])) if len(args) > 1 and 'y' == input("Overwrite? (y/n): ").lower() else print("Refactor cancelled."), "Refactors a file based on an instruction.")
+
+    # Collaboration Commands
+    def handle_todo(args):
+        if not args:
+            print("Usage: todo [add|list]")
+            return
+
+        sub_command = args[0]
+        if sub_command == "add":
+            # The full argument string for 'add' is everything after 'todo add '
+            arg_string = " ".join(args[1:])
+            try:
+                # Use shlex to correctly parse arguments with quotes
+                parsed_args = shlex.split(arg_string)
+                if len(parsed_args) != 2:
+                    raise ValueError("Invalid number of arguments for 'todo add'")
+
+                assignee, description = parsed_args
+
+                if not assignee.startswith('@'):
+                    raise ValueError("Assignee must start with '@'")
+
+                roadmap_manager.add_shared_task(description, assignee)
+
+            except ValueError as e:
+                print(f"Error: {e}")
+                print('Usage: todo add "@<user>" "<description>" (ensure description is quoted if it contains spaces)')
+        elif sub_command == "list":
+            tasks = roadmap_manager.view_shared_tasks()
+            if tasks:
+                print("\n--- Shared To-Do List ---")
+                for task in tasks:
+                    print(f"  - [{task.get('status', 'N/A').upper()}] {task.get('description', 'No description')} (Assigned to: {task.get('assignee', 'Unassigned')}, ID: {task.get('id', 'N/A')})")
+                print("-------------------------\n")
+            else:
+                print("No shared tasks found.")
+        else:
+            print(f"Unknown todo command: '{sub_command}'. Try 'add' or 'list'.")
+    register("todo", handle_todo, "Manages shared to-do list (add, list).")
 
     # System Commands
     def handle_dashboard(args):

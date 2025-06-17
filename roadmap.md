@@ -234,9 +234,12 @@ python main.py
     * As an advanced capability, this command would allow The Giblet to analyze and refactor its own codebase, aiming for improvements in structure, efficiency, or adherence to preferred coding styles.
 
 ## Phase 11: 🤝 The Collaborator (Team Features)
-* [ ] **Task 11.1: Implement Shared Project State**
-* [ ] **Task 11.2: Create Asynchronous Task Assignment Command**
-* [ ] **Task 11.3: Develop Shared Team Checkpoints**
+* [x] **Task 11.1: Implement Shared Project State**
+    * This laid the groundwork for collaborative features by enabling a shared understanding of project elements, initially focusing on a shared to-do list managed via Redis.
+* [x] **Task 11.2: Create Asynchronous Task Assignment Command**
+    * Implemented the `todo add "@user" "<description>"` and `todo list` CLI commands, allowing tasks to be assigned and viewed in a shared Redis-backed list.
+* [x] **Task 11.3: Develop Shared Team Checkpoints**
+    * Enhanced the `checkpoint save` and `checkpoint load` commands to optionally use Redis, allowing teams to share and restore specific Giblet session states.
 
 ---
 ## Phase 12: ☁️ The Deployable Service
