@@ -143,10 +143,11 @@ class CodeGenerator:
         The generated test script must:
         1. Import pytest and the necessary modules from the source file.
         2. Include tests for edge cases and normal inputs, ensuring they validate the expected, correct behavior according to the function's implied purpose.
-        3. For testing invalid inputs (e.g., wrong types that should cause an error in the function), use `pytest.raises` to assert that appropriate errors are raised by the function itself.
+        3. For testing invalid inputs (e.g., wrong types that should cause an error in the function being tested), use `pytest.raises` to assert that the function *itself* raises the appropriate error. Do NOT write tests that expect an assertion about correct behavior to fail (e.g., do not use `pytest.raises(AssertionError)` to wrap a correct assertion).
         4. Follow standard pytest conventions, with test function names starting with `test_`.
         4. Be complete and runnable as-is.
         5. All generated tests should pass ONLY if the source code correctly implements the function's implied purpose (e.g., an 'add' function actually adds).
+        6. Avoid generating tests that are designed to pass only if the function is implemented incorrectly. All tests should aim to validate the function's correctness based on its name and common usage.
 
         ONLY return the Python code for the test script, enclosed in a single markdown code block. Do not include any explanatory text before or after the code block.
 

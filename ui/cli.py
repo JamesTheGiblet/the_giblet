@@ -31,6 +31,7 @@ def start_cli_loop():
     agent = Agent(idea_synth=idea_synth, code_generator=code_generator) # Pass code_generator
     command_manager = CommandManager()
     plugin_manager = PluginManager()
+    MAX_FIX_ATTEMPTS = 3 # Define how many times to attempt self-correction
     
     # --- Register All Commands ---
     def register(name, handler, description=""):
@@ -250,8 +251,11 @@ def start_cli_loop():
     # <<< UPDATED: handle_execute with self-correction logic
     def handle_execute(args):
         plan = memory.recall('last_plan')
-        if not plan:
+        # Check if the plan is a list and not empty
+        if not isinstance(plan, list) or not plan:
             print("❌ No plan found in memory. Please generate a plan first using the 'plan' command.")
+            if isinstance(plan, str): # If it's the default error string from recall
+                print(f"   (Details: {plan})")
             return
 
         print("\n--- About to Execute Plan ---")
@@ -269,6 +273,10 @@ def start_cli_loop():
             print(f"\n--- Running Step {i}: giblet {command_string} ---")
             # Use shlex to correctly parse the command string from the plan
             parts = shlex.split(command_string)
+            if not parts: # If shlex.split results in an empty list (e.g., command_string was "")
+                print(f"   └─ Skipping empty command in plan (Step {i}).")
+                continue # Skip to the next command in the plan
+
             command_name = parts[0].lower()
             cmd_args = parts[1:]
 
@@ -283,27 +291,57 @@ def start_cli_loop():
             is_test_step = (command_name == "exec" and cmd_args and "pytest" in " ".join(cmd_args))
 
             if is_test_step and return_code != 0:
-                print("   └─ ❗ Tests failed.")
-                file_to_test = memory.recall('last_file_written')
-                # If last_file_written isn't set, try to infer from pytest args (e.g., pytest some_file.py)
-                if not file_to_test and len(cmd_args) > 0:
-                    # This is a simple heuristic; might need refinement
-                    for arg in cmd_args:
-                        if arg.endswith(".py"):
-                            file_to_test = arg
-                            break
-                
-                if file_to_test:
-                    error_log = stdout + stderr
-                    original_code = utils.read_file(file_to_test)
-                    if original_code:
-                        fixed_code = agent.attempt_fix(original_code, error_log)
-                        utils.write_file(file_to_test, fixed_code)
-                        print(f"   └─ ✨ Applied potential fix to {file_to_test}. Retrying tests...")
-                        return_code, _, _ = utils.execute_command(" ".join(cmd_args)) # Retry directly
-                        print("   └─ ✅ Self-correction successful! Tests now pass." if return_code == 0 else "   └─ ❌ Self-correction failed. Tests still failing.")
-                else:
-                    print("   └─ ⚠️ Could not determine which file to fix for self-correction.")
+                current_error_log = stdout + stderr
+                current_return_code = return_code
+
+                for attempt in range(MAX_FIX_ATTEMPTS):
+                    print(f"   └─ ❗ Tests failed. Attempting self-correction ({attempt + 1}/{MAX_FIX_ATTEMPTS})...")
+                    file_to_test = memory.recall('last_file_written')
+                    if not file_to_test and len(cmd_args) > 0:
+                        for arg_path in cmd_args: # Iterate through pytest arguments
+                            if Path(arg_path).is_file() and arg_path.endswith(".py"): # Check if arg is a file and python
+                                file_to_test = arg_path
+                                break
+                            elif Path(arg_path).is_dir(): # If it's a dir, pytest might run tests within it
+                                # This heuristic could be improved, e.g. by looking for test files in that dir
+                                # For now, we can't reliably pick a single file to fix if a dir is given.
+                                pass # Or try to find the most recently modified .py file in that dir
+
+                    if file_to_test:
+                        code_to_fix = utils.read_file(file_to_test)
+                        if code_to_fix:
+                            print(f"   └─ 🤖 LLM attempting to fix {file_to_test} based on error (first 300 chars):\n{current_error_log[:300]}...") 
+                            fixed_code = agent.attempt_fix(code_to_fix, current_error_log)
+                            print(f"   └─ Proposed fix by LLM for {file_to_test}:\n-------\n{fixed_code}\n-------")
+                            
+                            # More robust sanity check: ensure there's at least one non-comment, non-empty line
+                            has_actual_code = any(line.strip() and not line.strip().startswith("#") for line in fixed_code.splitlines())
+                            if fixed_code and has_actual_code:
+                                utils.write_file(file_to_test, fixed_code)
+                                print(f"   └─ ✨ Applied potential fix to {file_to_test}. Retrying tests...")
+                                current_return_code, retry_stdout, retry_stderr = utils.execute_command(" ".join(cmd_args))
+                                current_error_log = retry_stdout + retry_stderr # Update error log for next potential attempt
+
+                                if current_return_code == 0:
+                                    print("   └─ ✅ Self-correction successful! Tests now pass.")
+                                    break # Exit the fix attempt loop
+                                else:
+                                    print(f"   └─ ❌ Self-correction attempt {attempt + 1} failed. Tests still failing.")
+                                    if attempt + 1 == MAX_FIX_ATTEMPTS:
+                                        print(f"      └─ Max fix attempts reached. Last error log:\n{current_error_log}")
+                            else:
+                                print(f"   └─ ⚠️ LLM did not provide a valid fix on attempt {attempt + 1}. Stopping self-correction for this step.")
+                                break # Exit the fix attempt loop
+                        else:
+                            print(f"   └─ ⚠️ Could not read file {file_to_test} to attempt fix. Stopping self-correction.")
+                            break # Exit the fix attempt loop
+                    else:
+                        print("   └─ ⚠️ Could not determine which file to fix for self-correction. Stopping.")
+                        break # Exit the fix attempt loop
+                else: # This 'else' belongs to the 'for' loop, executed if the loop completed without a 'break'
+                    if current_return_code != 0: # Check if tests are still failing after all attempts
+                        print("   └─ ❌ Self-correction ultimately failed after all attempts.")
+                        
         print("\n✅ Plan execution complete.")
 
     register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")

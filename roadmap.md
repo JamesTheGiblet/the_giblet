@@ -265,7 +265,7 @@ python main.py
     * Enable Giblet to break down complex user requests into smaller, manageable sub-tasks.
 * [x] **Task 14.2: Implement a Multi-Step Command Execution Loop**
     * Allow Giblet to execute a sequence of commands autonomously to achieve a larger goal.
-* [ ] **Task 14.3: Add Self-Correction Logic based on Test Failures**
+* [x] **Task 14.3: Add Self-Correction Logic based on Test Failures**
     * Empower Giblet to attempt to fix its own generated code if automated tests fail.
 
 ---

@@ -42,7 +42,7 @@ def main():
     st.title("🧠 The Giblet: Project Cockpit")
 
     # <<< UPDATED: Add a new tab for the refactor tool
-    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation"])
+    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation"]) # Agent tab removed
 
     with tabs[0]:
         st.header("Project Roadmap")
@@ -153,6 +153,72 @@ def main():
                              except Exception as e_gen:
                                 st.error(f"Error generating tests: {sanitize_for_display(str(e_gen))}")
         except Exception as e:
+            st.error(f"Failed to initialize AI code generators: {sanitize_for_display(str(e))}")
+
+        st.divider() # Add a divider before Agent controls
+        st.header("Autonomous Agent Control")
+        st.write("Define a high-level goal, let the agent create a plan, and then execute it.")
+
+        # Initialize session state variables if they don't exist
+        if 'agent_plan' not in st.session_state:
+            st.session_state.agent_plan = None
+        if 'agent_execution_result' not in st.session_state:
+            st.session_state.agent_execution_result = None
+
+        goal = st.text_area("Enter your high-level goal:", height=100, key="agent_goal_input_in_generator",
+                            help="e.g., 'Create a Python function to calculate Fibonacci numbers, write tests for it, and then run the tests.'")
+
+        if st.button("Generate Plan", key="agent_generate_plan_btn_in_generator"):
+            st.session_state.agent_plan = None # Clear previous plan
+            st.session_state.agent_execution_result = None # Clear previous execution result
+            if not goal.strip():
+                st.warning("Please enter a goal.")
+            else:
+                with st.spinner("Agent is thinking and creating a plan..."):
+                    try:
+                        response = httpx.post("http://localhost:8000/agent/plan", json={"goal": goal}, timeout=120)
+                        response.raise_for_status()
+                        data = response.json()
+                        if data.get("error"):
+                            st.error(f"Failed to generate plan: {data.get('error')}")
+                        elif data.get("plan"):
+                            st.session_state.agent_plan = data.get("plan")
+                            st.success("Plan generated successfully!")
+                        else:
+                            st.error("Received an unexpected response from the plan generation API.")
+                    except httpx.RequestError as e_req:
+                        st.error(f"API Request Failed (Plan Generation): {sanitize_for_display(str(e_req))}")
+                    except Exception as e_gen:
+                        st.error(f"Error during plan generation: {sanitize_for_display(str(e_gen))}")
+        
+        if st.session_state.agent_plan:
+            st.subheader("Generated Plan:")
+            for i, step in enumerate(st.session_state.agent_plan, 1):
+                st.markdown(f"`Step {i}: giblet {step}`")
+            
+            st.warning("Review the plan carefully before execution. Execution will run commands on your system. Check API server console for detailed logs.")
+            if st.button("Execute Plan", type="primary", key="agent_execute_plan_btn_in_generator"):
+                st.session_state.agent_execution_result = None # Clear previous result
+                with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."):
+                    try:
+                        response = httpx.post("http://localhost:8000/agent/execute", timeout=600) 
+                        response.raise_for_status()
+                        st.session_state.agent_execution_result = response.json()
+                        
+                        if st.session_state.agent_execution_result:
+                            res = st.session_state.agent_execution_result
+                            st.markdown(f"**Execution Result:** {res.get('message')}")
+                            if res.get("final_error"): st.error(f"Details: {res.get('final_error')}")
+                            st.json({
+                                "Steps Executed": res.get('steps_executed', 0),
+                                "Initial Test Failures": res.get('tests_failed_initial', 0),
+                                "Fix Attempts": res.get('fix_attempts', 0),
+                                "Self-Correction Succeeded": res.get('self_correction_successful', 'N/A')
+                            })
+                    except httpx.TimeoutException: st.error("Agent execution timed out. The process might still be running. Check the API server console.")
+                    except httpx.RequestError as e_req: st.error(f"API Request Failed (Plan Execution): {sanitize_for_display(str(e_req))}")
+                    except Exception as e_exec: st.error(f"Error during plan execution: {sanitize_for_display(str(e_exec))}")
+        elif st.session_state.agent_execution_result: # Display previous result if no current plan
             st.error(f"Failed to initialize AI code generators: {sanitize_for_display(str(e))}")
 
     # <<< NEW: Refactor Cockpit Tab
@@ -290,5 +356,6 @@ def main():
                         st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
                     except Exception as e_stub:
                         st.error(f"Error generating stubs for {stub_filepath}: {sanitize_for_display(str(e_stub))}")
+
 if __name__ == "__main__":
     main()

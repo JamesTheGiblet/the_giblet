@@ -2,39 +2,46 @@ import pytest
 from buggy import add
 
 def test_add_positive_numbers():
-    assert add(2, 3) == 5 #This will fail because of the bug
+    assert add(2, 3) == 5
+    assert add(10, 5) == 15
+    assert add(0, 0) == 0
 
 def test_add_negative_numbers():
-    assert add(-2, -3) == -5 #This will fail because of the bug
+    assert add(-2, -3) == -5
+    assert add(-10, 5) == -5
+    assert add(10, -5) == 5
+
+def test_add_mixed_numbers():
+    assert add(-2, 3) == 1
+    assert add(2, -3) == -1
+    assert add(0, -5) == -5
+    assert add(-5, 0) == -5
 
 def test_add_zero():
-    assert add(5, 0) == 5 #This will fail because of the bug
-    assert add(0, 5) == 5 #This will fail because of the bug
-    assert add(0,0) == 0 #This will fail because of the bug
+    assert add(5, 0) == 5
+    assert add(0, 5) == 5
 
-
-def test_add_mixed_signs():
-    assert add(5, -3) == 2 #This will fail because of the bug
-    assert add(-5, 3) == -2 #This will fail because of the bug
 
 def test_add_large_numbers():
-    assert add(1000000, 2000000) == 3000000 #This will fail because of the bug
+    assert add(1000, 2000) == 3000
+    assert add(1000000, 2000000) == 3000000
 
 
-def test_add_floating_point():
-    assert add(2.5, 3.5) == 6.0 #This will fail because of the bug
+def test_add_floating_point_numbers():
+    assert add(2.5, 3.5) == 6.0
+    assert add(10.5, 5.5) == 16.0
+    assert add(-2.5, 3.5) == 1.0
 
-def test_add_zero_to_float():
-    assert add(0, 3.14) == 3.14 #This will fail because of the bug
-
-def test_add_float_to_zero():
-    assert add(3.14,0) == 3.14 #This will fail because of the bug
-
-
-def test_add_with_strings():
+def test_add_invalid_input_string():
     with pytest.raises(TypeError):
-        add("hello", "world")
-
-def test_add_with_mixed_types():
+        add("2", 3)
     with pytest.raises(TypeError):
-        add(5, "world")
+        add(2, "3")
+    with pytest.raises(TypeError):
+        add("2", "3")
+
+def test_add_invalid_input_list():
+    with pytest.raises(TypeError):
+        add([1,2], 3)
+    with pytest.raises(TypeError):
+        add(2, [1,2])
