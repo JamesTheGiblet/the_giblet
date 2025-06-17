@@ -65,14 +65,20 @@ def start_cli_loop():
     while True:
         try:
             # <<< DYNAMIC PROMPT LOGIC
-            current_focus = memory.recall("current_focus")
-            if current_focus:
+            # Priority 1: Check for a manual user-set focus.
+            manual_focus = memory.recall("current_focus")
+            if manual_focus:
                 # Truncate for display if too long
-                display_focus = (current_focus[:20] + '...') if len(current_focus) > 23 else current_focus
+                display_focus = (manual_focus[:20] + '...') if len(manual_focus) > 23 else manual_focus
                 prompt = f" giblet [focus: {display_focus}]> "
+            # Priority 2: If no manual focus, check for a git branch.
+            elif git_analyzer.repo: # Check if git_analyzer successfully initialized a repo
+                branch_name = git_analyzer.repo.active_branch.name
+                prompt = f" giblet [branch: {branch_name}]> "
+            # Priority 3: Default prompt if neither is available.
             else:
                 prompt = " giblet> "
-            
+
             user_input = input(prompt).strip()
             
             if not user_input:
