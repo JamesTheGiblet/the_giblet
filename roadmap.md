@@ -243,9 +243,12 @@ python main.py
 
 ---
 ## Phase 12: ☁️ The Deployable Service
-* [ ] **Task 12.1: Build Core Service API (FastAPI)**
-* [ ] **Task 12.2: Refactor CLI and Dashboard as API Clients**
-* [ ] **Task 12.3: Package Giblet Service as a Docker Container**
+* [x] **Task 12.1: Build Core Service API (FastAPI)**
+    * This established a robust FastAPI backend, exposing core Giblet functionalities like roadmap viewing and task management through well-defined API endpoints.
+* [x] **Task 12.2: Refactor CLI and Dashboard as API Clients**
+    * The CLI's `roadmap` command and potentially other features were updated to consume data from the new API, decoupling them from direct core module access. The dashboard would similarly transition to an API-first approach.
+* [x] **Task 12.3: Package Giblet Service as a Docker Container**
+    * The Giblet backend service was containerized using Docker, simplifying deployment, ensuring consistency across environments, and preparing it for broader accessibility.
 
 ---
 ## Phase 13: 💻 The Environment Integrator (IDE & Shell)
