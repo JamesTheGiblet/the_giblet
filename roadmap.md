@@ -267,3 +267,10 @@ python main.py
 * [ ] **Task 15.1: Build an Evolving User Profile Model**
 * [ ] **Task 15.2: Implement Dynamic Prompt Personalization**
 * [ ] **Task 15.3: Create an Interaction Feedback Loop for Vibe Tuning**
+
+---
+## Phase 16: 🎮 The Interactive Cockpit
+* [ ] **Task 16.1: Build the 'Generator' Tab**
+* [ ] **Task 16.2: Build the 'Refactor' Tab**
+* [ ] **Task 16.3: Build the 'File Explorer' Tab**
+* [ ] **Task 16.4: Integrate Automation Commands**
