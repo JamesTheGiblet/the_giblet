@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).parent))
 from core.roadmap_manager import RoadmapManager
 from core.memory import Memory
 from core.code_generator import CodeGenerator # <<< NEW IMPORT
+from core.automator import Automator # <<< NEW IMPORT
 from core import utils # <<< NEW IMPORT
 
 # --- Initialize FastAPI and Core Modules ---
@@ -20,6 +21,7 @@ app = FastAPI(
 )
 memory = Memory()
 roadmap_manager = RoadmapManager(memory_system=memory)
+automator = Automator() # <<< NEW INSTANCE
 code_generator = CodeGenerator() # <<< NEW INSTANCE
 
 # --- Define Request/Response Models ---
@@ -37,6 +39,10 @@ class RefactorRequest(BaseModel):
 class WriteFileRequest(BaseModel):
     filepath: str
     content: str
+
+# 1. Add this Pydantic model with the others
+class StubRequest(BaseModel):
+    filepath: str
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -86,3 +92,37 @@ def write_file_endpoint(request: WriteFileRequest):
         return {"message": "File updated successfully."}
     else:
         return {"error": "Failed to write file."}
+
+
+@app.get("/files/list")
+def list_files_endpoint():
+    """Lists all files in the project directory recursively."""
+    files = utils.list_files()
+    return {"files": files}
+
+
+@app.get("/file/read")
+def read_file_endpoint(filepath: str):
+    """Reads the content of a specific file."""
+    content = utils.read_file(filepath)
+    if content is None:
+        return {"error": "File not found or could not be read."}
+    return {"filepath": filepath, "content": content}
+
+# 2. Add the new endpoints at the end of the file
+@app.post("/automate/changelog")
+def generate_changelog_endpoint():
+    """Generates a changelog from the project's git history."""
+    success = automator.generate_changelog()
+    if success:
+        return {"message": "Changelog generated successfully in data/changelogs/"}
+    return {"error": "Failed to generate changelog."}
+
+
+@app.post("/automate/stubs")
+def generate_stubs_endpoint(request: StubRequest):
+    """Adds TODO stubs to a specified Python file."""
+    success = automator.generate_stubs(request.filepath)
+    if success:
+        return {"message": f"Stub generation complete for {request.filepath}."}
+    return {"error": f"Failed to generate stubs for {request.filepath}."}

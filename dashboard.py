@@ -42,9 +42,9 @@ def main():
     st.title("🧠 The Giblet: Project Cockpit")
 
     # <<< UPDATED: Add a new tab for the refactor tool
-    tab1, tab2, tab3, tab4 = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor"])
+    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation"])
 
-    with tab1:
+    with tabs[0]:
         st.header("Project Roadmap")
         try:
             # The roadmap tab now calls the API
@@ -79,7 +79,7 @@ def main():
             st.error("Could not connect to The Giblet API. Is the server running?")
         except Exception as e:
             st.error(f"Error in Roadmap tab: {sanitize_for_display(str(e))}")
-    with tab2:
+    with tabs[1]:
         st.header("Recent Project History")
         try:
             # This logic now correctly initializes the GitAnalyzer inside the try block
@@ -104,7 +104,7 @@ def main():
                         st.divider()
         except Exception as e:
             st.error(f"Could not load Git history: {sanitize_for_display(str(e))}")
-    with tab3:
+    with tabs[2]:
         # The Generator tab requires its own instances
         try:
             idea_synth = IdeaSynthesizer()
@@ -156,7 +156,7 @@ def main():
             st.error(f"Failed to initialize AI code generators: {sanitize_for_display(str(e))}")
 
     # <<< NEW: Refactor Cockpit Tab
-    with tab4:
+    with tabs[3]:
         st.header("Code Refactor")
         st.write("Improve existing code by providing a file and a refactoring instruction.")
 
@@ -214,5 +214,81 @@ def main():
                     else:
                         st.error(f"API Request Failed. Could not save the file. Server said: {write_response.text}")
 
+    # <<< NEW: File Explorer Cockpit Tab
+    with tabs[4]:
+        st.header("Project File Explorer")
+
+        try:
+            # Get the list of all files from the API
+            response = httpx.get("http://localhost:8000/files/list", timeout=10)
+            response.raise_for_status()
+            files = response.json().get("files", [])
+
+            if not files:
+                st.warning("No files found in the project.")
+            else:
+                # Add a blank option to the top of the list
+                files.insert(0, "")
+                selected_file = st.selectbox("Select a file to view its contents:", files)
+
+                if selected_file:
+                    # If a file is selected, fetch and display its content
+                    with st.spinner(f"Reading {selected_file}..."):
+                        read_response = httpx.get(f"http://localhost:8000/file/read?filepath={selected_file}", timeout=10)
+                        read_response.raise_for_status()
+                        file_data = read_response.json()
+
+                        st.subheader(f"Contents of `{file_data.get('filepath')}`")
+                        # Determine language for syntax highlighting based on file extension
+                        lang = file_data.get('filepath', '').split('.')[-1]
+                        if lang == 'py': lang = 'python'
+                        if lang == 'md': lang = 'markdown'
+
+                        st.code(file_data.get("content", "Could not load content."), language=lang)
+
+        except httpx.RequestError as e:
+            st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e))}")
+
+    # <<< NEW: Automation Cockpit Tab
+    with tabs[5]:
+        st.header("Project Automation")
+
+        st.subheader("Generate Changelog")
+        if st.button("Generate from Git History", use_container_width=True, key="btn_changelog"):
+            with st.spinner("Analyzing Git history..."):
+                try:
+                    response = httpx.post("http://localhost:8000/automate/changelog", timeout=30)
+                    response.raise_for_status()
+                    result = response.json()
+                    if "error" in result:
+                        st.error(f"Changelog generation failed: {result['error']}")
+                    else:
+                        st.success(result["message"])
+                except httpx.RequestError as e_api:
+                    st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
+                except Exception as e_cl:
+                    st.error(f"Error generating changelog: {sanitize_for_display(str(e_cl))}")
+
+        st.divider()
+
+        st.subheader("Add TODO Stubs")
+        stub_filepath = st.text_input("Enter the path to a Python file:", "test_file.py", key="txt_stub_file")
+        if st.button("Add Stubs", use_container_width=True, key="btn_stubs"):
+            if not stub_filepath:
+                st.warning("Please enter a file path.")
+            else:
+                with st.spinner(f"Analyzing {stub_filepath}..."):
+                    try:
+                        response = httpx.post("http://localhost:8000/automate/stubs", json={"filepath": stub_filepath}, timeout=30)
+                        response.raise_for_status()
+                        result = response.json()
+                        if "error" in result:
+                            st.error(f"Stub generation failed for {stub_filepath}: {result['error']}")
+                        else:
+                            st.success(result["message"])
+                    except httpx.RequestError as e_api:
+                        st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
+                    except Exception as e_stub:
+                        st.error(f"Error generating stubs for {stub_filepath}: {sanitize_for_display(str(e_stub))}")
 if __name__ == "__main__":
     main()
