@@ -1,10 +1,3 @@
-Excellent. Let's formalize Phase 0. Based on our discussions, I will now generate the complete, fleshed-out content for the two foundational documents: `README.md` and `roadmap.md`.
-
-This marks the completion of **Phase 0: Seed the Vision**.
-
----
-### `README.md`
-
 🧠 **The Giblet: Your Personal AI Dev Companion**
 
 A personalized, evolving, and modular AI Praximate built to partner with James (The Giblet) through every stage of software and creative development — coding, designing, planning, and vibing.
@@ -194,6 +187,32 @@ python main.py
     * Pull commits/changes into a Markdown log.
 
 ---
-With these documents generated, **Phase 0 is complete.** The vision and the path are set.
+## Phase 6: 🌀 Git-Awareness Engine
+* [ ] **Task 6.1: Implement Advanced Git Functions**
+* [ ] **Task 6.2: Create AI-Powered Repo Summarizer**
+* [ ] **Task 6.3: Implement Contextual Vibe Mode (Git Branch)**
 
-We are ready to begin **Phase 1: Build the Core Skeleton.**
+---
+## Phase 7: 🎨 The Visual Canvas (Dashboard)
+* [ ] **Task 7.1: Set Up Basic Streamlit Application**
+* [ ] **Task 7.2: Build Interactive Roadmap Visualization**
+* [ ] **Task 7.3: Create Git History Dashboard Page**
+* [ ] **Task 7.4: Implement 'Idea Synth' Playground UI**
+
+---
+## Phase 8: 🛠️ Proactive Builder Engine
+* [ ] **Task 8.1: Implement Advanced `code_gen` Module**
+* [ ] **Task 8.2: Implement `Autogen Web UI` (Proof of Concept)**
+* [ ] **Task 8.3: Implement `refactor` command**
+
+---
+## Phase 9: 🔌 The Plugin SDK
+* [ ] **Task 9.1: Define Plugin Architecture and Entry Points**
+* [ ] **Task 9.2: Refactor a Core Module into a Plugin**
+* [ ] **Task 9.3: Create Plugin for Local LLMs (Ollama/LangChain)**
+
+---
+## Phase 10: 💫 The Sentient Loop (Self-Improvement)
+* [ ] **Task 10.1: Implement `unit_tester` command**
+* [ ] **Task 10.2: Create `test thyself` command**
+* [ ] **Task 10.3: Create `refactor thyself` command (Stretch Goal)**
