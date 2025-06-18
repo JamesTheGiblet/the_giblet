@@ -23,6 +23,7 @@ from core.code_generator import CodeGenerator # For CapabilityAssessor
 from core.style_preference import StylePreferenceManager, DEFAULT_STYLE_PREFERENCES # Import StylePreferenceManager and defaults
 from core.capability_assessor import CapabilityAssessor # For the new UI feature
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
+from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
 
 # --- Proactive Learner Imports (from snippet) ---
 try:
@@ -175,17 +176,23 @@ def main():
     # Instantiate ProjectContextualizer for the Dashboard
     # Assumes dashboard runs from project root. Memory instance is 'memory_instance'.
     project_contextualizer_dashboard = ProjectContextualizer(memory_system=memory_instance, project_root=".")
+
+    # Instantiate IdeaInterpreter for the Dashboard
+    idea_interpreter_dashboard = IdeaInterpreter(
+        llm_provider=dashboard_llm_provider,
+        user_profile=user_profile_instance,
+        style_manager=style_manager_for_dashboard
+    )
     
     # Instantiate ProactiveLearner for JIT suggestions using the live UserProfile
     proactive_learner_jit = None
     if ProactiveLearner.__name__ != "ProactiveLearner" or ProactiveLearner.__module__ != "__main__": # Check if not fallback
         proactive_learner_jit = ProactiveLearner(user_profile=user_profile_instance)
-
     # --- Sidebar ---
     with st.sidebar:
         st.header("🚀 Quick Actions")
 
-        tab_names = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
+        tab_names = ["🧬 Genesis Mode", "🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
         if 'active_tab' not in st.session_state:
             st.session_state.active_tab = tab_names[0]
 
@@ -211,7 +218,7 @@ def main():
     # The active tab is controlled by st.session_state.active_tab, set by sidebar buttons.
     
     # Ensure active_tab is initialized if it somehow got removed from session_state
-    all_tab_options = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
+    all_tab_options = ["🧬 Genesis Mode", "🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = all_tab_options[0]
     elif st.session_state.active_tab not in all_tab_options: # If active_tab is an invalid old value
@@ -219,7 +226,33 @@ def main():
 
     # --- Tab Content ---
     # The content display logic remains the same, using if/elif based on st.session_state.active_tab
-    if st.session_state.active_tab == "🗺️ Roadmap":
+    if st.session_state.active_tab == "🧬 Genesis Mode":
+        st.header("🧬 Project Genesis Mode")
+        st.write("""
+            Start a new project from scratch! Provide an initial idea, and The Giblet's
+            Idea Interpreter will help refine it into a detailed project brief.
+            (Currently, this uses placeholder logic for the interactive Q&A).
+        """)
+
+        initial_idea = st.text_area("Enter your initial project idea:", height=100, key="genesis_initial_idea",
+                                    help="e.g., 'A mobile app to identify plants using the phone camera.'")
+
+        if st.button("🚀 Start Genesis Interpretation", key="start_genesis_btn"):
+            if not initial_idea.strip():
+                st.warning("Please enter an initial idea to start Genesis Mode.")
+            else:
+                with st.spinner("Interpreter is thinking..."):
+                    try:
+                        # Use the dashboard's IdeaInterpreter instance
+                        clarified_brief = idea_interpreter_dashboard.interpret_idea(initial_idea)
+                        st.session_state.clarified_brief_genesis = clarified_brief # Store in session state
+                    except Exception as e_genesis_interp:
+                        st.error(f"Error during idea interpretation: {sanitize_for_display(str(e_genesis_interp))}")
+        
+        if 'clarified_brief_genesis' in st.session_state and st.session_state.clarified_brief_genesis:
+            st.subheader("Interpreted Project Brief (Initial Pass):")
+            st.json(st.session_state.clarified_brief_genesis)
+    elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("Project Roadmap")
         try:
             # The roadmap tab now calls the API

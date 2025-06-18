@@ -29,6 +29,7 @@ from core.llm_providers import GeminiProvider, OllamaProvider # Import specific 
 from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
 from core.genesis_logger import GenesisLogger # Import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
+from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
@@ -104,6 +105,12 @@ def start_cli_loop():
                                  project_contextualizer=project_contextualizer_cli,
                                  style_preference_manager=style_manager_for_cli) # Pass style_manager
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
+    # Instantiate IdeaInterpreter
+    idea_interpreter_cli = IdeaInterpreter(
+        llm_provider=cli_llm_provider,
+        user_profile=user_profile,
+        style_manager=style_manager_for_cli
+    )
     proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not None else None
 
     skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager
@@ -130,6 +137,7 @@ def start_cli_loop():
         print("  profile set <cat> <key> <val> - Sets a profile value.")
         print("  profile clear              - Clears the entire user profile.")
         print("\nLLM Configuration Commands:")
+        print("  genesis start \"<idea>\"     - Begins the Genesis Mode idea interpretation.") # New help line
         print("  gauntlet edit              - Opens the Gauntlet Test Editor UI.") # New help line
         print("  assess model               - Runs capability tests on the current LLM.") # New help line
         print("  llm status                 - Shows current LLM provider and model.")
@@ -756,9 +764,10 @@ def start_cli_loop():
 
     # Genesis Mode Commands (Initial Placeholder)
     def handle_genesis(args):
-        if not args or args[0].lower() != "log":
-            print("Usage: genesis log <project_name> \"<initial_brief>\" [options...]")
-            print("Options (example): --workspace_type local --workspace_location ./my_project")
+        if not args or args[0].lower() not in ["log", "start"]:
+            print("Usage: genesis <log|start> [options...]")
+            print("  genesis log <project_name> \"<initial_brief>\"")
+            print("  genesis start \"<your initial project idea>\"")
             return
 
         action = args[0].lower()
@@ -766,12 +775,11 @@ def start_cli_loop():
             if len(args) < 3:
                 print("Usage: genesis log <project_name> \"<initial_brief>\"")
                 return
-            
+
             project_name_arg = args[1]
             # The brief might be quoted and contain spaces.
-            # A more robust parser might be needed if options are complex.
-            # For now, assume brief is the third argument, potentially quoted.
-            initial_brief_arg = args[2] # This will be improved when Genesis Mode is built
+            # shlex.split might be better here if more args are added later.
+            initial_brief_arg = " ".join(args[2:]) # Brief is the rest of the arguments
             
             # Placeholder for actual settings that will be gathered during Genesis Mode
             placeholder_settings = {
@@ -779,14 +787,30 @@ def start_cli_loop():
                 "roadmap_format": style_manager_for_cli.get_preference("roadmap.default_format", "phase_based"),
                 "tone": style_manager_for_cli.get_preference("general_tone", "neutral")
             }
-            
+
             genesis_logger_cli.log_project_creation(
                 project_name=project_name_arg,
                 initial_brief=initial_brief_arg,
                 genesis_settings_used=placeholder_settings,
                 workspace_type="local_placeholder", # Will be dynamic
-                workspace_location=f"./{project_name_arg}_placeholder" # Will be dynamic
+                workspace_location=f"./{project_name_arg.replace(' ', '_')}_placeholder" # Will be dynamic
             )
+        elif action == "start":
+            if len(args) < 2:
+                print("Usage: genesis start \"<your initial project idea>\"")
+                return
+            
+            initial_idea = " ".join(args[1:]) # The idea is everything after "start"
+            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
+            print("   The Idea Interpreter will now ask clarifying questions...")
+            
+            # Call the IdeaInterpreter
+            clarified_brief_data = idea_interpreter_cli.interpret_idea(initial_idea)
+            
+            print("\n--- Clarified Project Brief (Initial Pass) ---")
+            print(json.dumps(clarified_brief_data, indent=2))
+            print("----------------------------------------------\n")
+            print("Next steps in Genesis Mode will use this brief to generate documents and scaffold the project.")
     register("genesis", handle_genesis, "Manages Genesis Mode operations (e.g., logging project creation).")
     plugin_manager.discover_plugins()
 
