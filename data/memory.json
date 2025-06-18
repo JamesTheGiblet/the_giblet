@@ -26,6 +26,44 @@
           "model_name": "mistral"
         }
       }
+    },
+    "llm_gauntlet_profiles": {
+      "Ollama": {
+        "test-gauntlet-ollama-model": {
+          "provider_name": "Ollama",
+          "model_name": "test-gauntlet-ollama-model",
+          "capabilities": {
+            "code_generation_level": 1,
+            "json_adherence_level": 1,
+            "context_window_recall_level": 0,
+            "instruction_following_level": 0
+          },
+          "details": {
+            "code_generation": [
+              {
+                "level": 1,
+                "prompt": "cg_prompt1",
+                "output": "def test_func_impl(): return True",
+                "passed": true
+              }
+            ],
+            "json_adherence": [
+              {
+                "level": 1,
+                "prompt": "json_prompt1",
+                "response": "{ \"status\": \"ok\" }",
+                "passed": true
+              }
+            ],
+            "context_window_recall": [],
+            "instruction_following": []
+          },
+          "determined_capabilities": {
+            "output_formats_include_json": true,
+            "can_generate_functions": true
+          }
+        }
+      }
     }
   }
 }
