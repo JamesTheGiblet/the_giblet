@@ -301,7 +301,7 @@ def start_cli_loop():
         try:
             # Start the streamlit server as a background process
             new_process = subprocess.Popen(
-                [sys.executable, "-m", "streamlit", "run", "dashboard.py", "--server.runOnSave", "true"],
+                [sys.executable, "-m", "streamlit", "run", "ui/dashboard.py", "--server.runOnSave", "true"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
