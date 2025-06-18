@@ -467,8 +467,8 @@ python main.py
     **Goal:** Build the core systems for learning, storing, and managing your personal development "fingerprint."
     **Tasks:**
         * [x] **Task 21.1: Implement `style_preference.py` Module:** Create the class and methods for managing the `style_preference.json` file, which will store your preferred formats, tones, and defaults.
-        * [ ] **Task 21.2: Implement Genesis Logging:** Create the methods to initialize and write to `genesis_log.json`, which will track every project created via this mode.
-        * [ ] **Task 21.3: Build "My Vibe" Dashboard UI:** Create a new tab in the Cockpit where you can view and manually edit the preferences stored in `style_preference.json`.
+        * [x] **Task 21.2: Implement Genesis Logging:** Create the methods to initialize and write to `genesis_log.json`, which will track every project created via this mode.
+        * [x] **Task 21.3: Build "My Vibe" Dashboard UI:** Create a new tab in the Cockpit where you can view and manually edit the preferences stored in `style_preference.json`.
 
 ---
 ## Phase 22: 💬 The Interactive Interpreter

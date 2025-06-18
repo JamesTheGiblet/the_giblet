@@ -20,7 +20,7 @@ from core.user_profile import UserProfile, DEFAULT_PROFILE_STRUCTURE # Ensure Us
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.code_generator import CodeGenerator # For CapabilityAssessor
-from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
+from core.style_preference import StylePreferenceManager, DEFAULT_STYLE_PREFERENCES # Import StylePreferenceManager and defaults
 from core.capability_assessor import CapabilityAssessor # For the new UI feature
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
@@ -184,10 +184,10 @@ def main():
     # --- Sidebar ---
     with st.sidebar:
         st.header("🚀 Quick Actions")
-        
-        tab_names = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🧠 Proactive Suggestions"] # Added new tab
+
+        tab_names = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
         if 'active_tab' not in st.session_state:
-            st.session_state.active_tab = tab_names[0] # Default to the first tab
+            st.session_state.active_tab = tab_names[0]
 
         for tab_name in tab_names:
             if st.button(tab_name, key=f"sidebar_nav_{tab_name.replace(' ', '_')}", use_container_width=True):
@@ -211,7 +211,7 @@ def main():
     # The active tab is controlled by st.session_state.active_tab, set by sidebar buttons.
     
     # Ensure active_tab is initialized if it somehow got removed from session_state
-    all_tab_options = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🧠 Proactive Suggestions"] # Added new tab
+    all_tab_options = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe", "🧠 Proactive Suggestions"]
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = all_tab_options[0]
     elif st.session_state.active_tab not in all_tab_options: # If active_tab is an invalid old value
@@ -818,6 +818,115 @@ def main():
 
     elif st.session_state.active_tab == "🧠 Proactive Suggestions":
         show_proactive_suggestions_tab()
+    
+    elif st.session_state.active_tab == "🎨 My Vibe":
+        st.header("🎨 My Vibe: Style Preferences")
+        st.write("Configure your personal development fingerprint. These settings influence how The Giblet generates content and structures projects.")
+
+        # Use the style_manager_for_dashboard instance
+        current_prefs = style_manager_for_dashboard.get_all_preferences()
+
+        if st.button("🔁 Reset All to Defaults", key="reset_style_prefs_btn"):
+            style_manager_for_dashboard.reset_to_defaults()
+            st.success("All style preferences have been reset to their default values.")
+            st.rerun() # Rerun to reflect the changes in the UI
+
+        st.divider()
+
+        # Predefined options for selectboxes
+        tone_options = ["professional", "casual", "witty", "neutral"]
+        readme_style_options = ["standard", "detailed", "minimalist"]
+        roadmap_format_options = ["phase_based", "kanban_style", "simple_list"]
+        repo_visibility_options = ["public", "private"]
+        license_options = ["MIT", "Apache-2.0", "GPL-3.0", "Unlicense", "None"]
+        formatter_options = ["black", "autopep8", "yapf", "none"]
+        docstring_format_options = ["google", "numpy", "epytext", "reStructuredText"]
+        all_readme_sections = ["Overview", "Features", "Getting Started", "Installation", "Usage", "Configuration", "API Reference", "Roadmap Link", "Contributing", "License", "Acknowledgements", "Tech Stack", "Deployment"]
+
+        with st.form("my_vibe_form"):
+            st.subheader("README Settings")
+            readme_style_val = current_prefs.get("readme", {}).get("default_style", "standard")
+            readme_style = st.selectbox("Default README Style", readme_style_options, index=readme_style_options.index(readme_style_val if readme_style_val in readme_style_options else "standard"))
+            readme_tone_val = current_prefs.get("readme", {}).get("default_tone", "professional")
+            readme_tone = st.selectbox("Default README Tone", tone_options, index=tone_options.index(readme_tone_val if readme_tone_val in tone_options else "professional"))
+            readme_sections = st.multiselect("Default README Sections", all_readme_sections, default=current_prefs.get("readme", {}).get("default_sections", ["Overview", "Features"]))
+
+            st.subheader("Roadmap Settings")
+            roadmap_format_val = current_prefs.get("roadmap", {}).get("default_format", "phase_based")
+            roadmap_format = st.selectbox("Default Roadmap Format", roadmap_format_options, index=roadmap_format_options.index(roadmap_format_val if roadmap_format_val in roadmap_format_options else "phase_based"))
+            roadmap_tone_val = current_prefs.get("roadmap", {}).get("default_tone", "neutral")
+            roadmap_tone = st.selectbox("Default Roadmap Tone", tone_options, index=tone_options.index(roadmap_tone_val if roadmap_tone_val in tone_options else "neutral"))
+
+            st.subheader("Project Defaults")
+            project_visibility_val = current_prefs.get("project", {}).get("default_repo_visibility", "private")
+            project_visibility = st.selectbox("Default Repository Visibility", repo_visibility_options, index=repo_visibility_options.index(project_visibility_val if project_visibility_val in repo_visibility_options else "private"))
+            project_language = st.text_input("Default Primary Language", value=current_prefs.get("project", {}).get("default_primary_language", "python"))
+            project_gitignore = st.checkbox("Include .gitignore by default?", value=current_prefs.get("project", {}).get("include_gitignore", True))
+            
+            # Corrected logic for project_license
+            default_license_from_prefs = current_prefs.get("project", {}).get("include_license")
+            actual_default_license_ui = "None" # Fallback for UI
+            if default_license_from_prefs is None: # Stored as null, means "None" in UI
+                actual_default_license_ui = "None"
+            elif default_license_from_prefs in license_options:
+                actual_default_license_ui = default_license_from_prefs
+            project_license_idx = license_options.index(actual_default_license_ui)
+            project_license = st.selectbox("Default License", license_options, index=project_license_idx)
+
+            st.subheader("General Communication")
+            general_tone = st.selectbox("Overall Preferred Tone", tone_options, index=tone_options.index(current_prefs.get("general_tone", "neutral")))
+
+            st.subheader("Coding Style")
+            # Corrected logic for coding_formatter
+            default_formatter_from_prefs = current_prefs.get("coding_style", {}).get("preferred_formatter")
+            actual_default_formatter_ui = "none" # Fallback for UI (represents stored None)
+            if default_formatter_from_prefs is None: # Stored as null, means "none" in UI
+                actual_default_formatter_ui = "none"
+            elif default_formatter_from_prefs in formatter_options:
+                actual_default_formatter_ui = default_formatter_from_prefs
+            coding_formatter_idx = formatter_options.index(actual_default_formatter_ui)
+            coding_formatter = st.selectbox("Preferred Code Formatter", formatter_options, index=coding_formatter_idx)
+            coding_docstring_val = current_prefs.get("coding_style", {}).get("docstring_format", "google")
+            coding_docstring = st.selectbox("Preferred Docstring Format", docstring_format_options, index=docstring_format_options.index(coding_docstring_val if coding_docstring_val in docstring_format_options else "google"))
+
+            submitted_vibe = st.form_submit_button("💾 Save My Vibe")
+
+            if submitted_vibe:
+                try:
+                    # README
+                    style_manager_for_dashboard.set_preference("readme.default_style", readme_style)
+                    style_manager_for_dashboard.set_preference("readme.default_tone", readme_tone)
+                    style_manager_for_dashboard.set_preference("readme.default_sections", readme_sections)
+                    
+                    # Roadmap
+                    style_manager_for_dashboard.set_preference("roadmap.default_format", roadmap_format)
+                    style_manager_for_dashboard.set_preference("roadmap.default_tone", roadmap_tone)
+
+                    # Project
+                    style_manager_for_dashboard.set_preference("project.default_repo_visibility", project_visibility)
+                    style_manager_for_dashboard.set_preference("project.default_primary_language", project_language)
+                    style_manager_for_dashboard.set_preference("project.include_gitignore", project_gitignore)
+                    style_manager_for_dashboard.set_preference("project.include_license", project_license if project_license != "None" else None)
+
+                    # General
+                    style_manager_for_dashboard.set_preference("general_tone", general_tone)
+
+                    # Coding Style
+                    style_manager_for_dashboard.set_preference("coding_style.preferred_formatter", coding_formatter if coding_formatter != "none" else None)
+                    style_manager_for_dashboard.set_preference("coding_style.docstring_format", coding_docstring)
+
+                    st.success("🎨 Your Vibe preferences have been saved!")
+                    # No explicit st.rerun() needed here, form submission handles it.
+                    # However, to ensure the UI reflects the just-saved state immediately if there were defaults involved:
+                    st.session_state.user_profile_data = user_profile_instance.get_all_data() # Refresh user profile if it influences anything
+                    # For style prefs, the manager's internal state is updated, and get_all_preferences() will reflect it on next render.
+                except Exception as e:
+                    st.error(f"Failed to save Vibe preferences: {sanitize_for_display(str(e))}")
+
+        st.caption(f"Preferences are stored in: {style_manager_for_dashboard.file_path}")
+        
+        if st.checkbox("Show Raw style_preference.json Content", key="show_raw_style_json"):
+            st.json(style_manager_for_dashboard.get_all_preferences())
 
 if __name__ == "__main__":
     main()

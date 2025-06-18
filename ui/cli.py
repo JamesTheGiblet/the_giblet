@@ -27,6 +27,7 @@ from core.llm_provider_base import LLMProvider # Import base provider
 from core.capability_assessor import CapabilityAssessor # New import for Gauntlet
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
+from core.genesis_logger import GenesisLogger # Import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
@@ -44,6 +45,7 @@ def start_cli_loop():
     memory = Memory() # Memory first
     user_profile = UserProfile(memory_system=memory) # UserProfile needs memory
     style_manager_for_cli = StylePreferenceManager() # Instantiate StylePreferenceManager
+    genesis_logger_cli = GenesisLogger() # Instantiate GenesisLogger
 
     # Helper function to get the configured LLM provider for CLI
     def get_cli_llm_provider(profile: UserProfile) -> LLMProvider | None:
@@ -751,6 +753,41 @@ def start_cli_loop():
 
     register("history", handle_history, "Views command history.")
     # --- Load Plugins ---
+
+    # Genesis Mode Commands (Initial Placeholder)
+    def handle_genesis(args):
+        if not args or args[0].lower() != "log":
+            print("Usage: genesis log <project_name> \"<initial_brief>\" [options...]")
+            print("Options (example): --workspace_type local --workspace_location ./my_project")
+            return
+
+        action = args[0].lower()
+        if action == "log":
+            if len(args) < 3:
+                print("Usage: genesis log <project_name> \"<initial_brief>\"")
+                return
+            
+            project_name_arg = args[1]
+            # The brief might be quoted and contain spaces.
+            # A more robust parser might be needed if options are complex.
+            # For now, assume brief is the third argument, potentially quoted.
+            initial_brief_arg = args[2] # This will be improved when Genesis Mode is built
+            
+            # Placeholder for actual settings that will be gathered during Genesis Mode
+            placeholder_settings = {
+                "readme_style": style_manager_for_cli.get_preference("readme.default_style", "standard"),
+                "roadmap_format": style_manager_for_cli.get_preference("roadmap.default_format", "phase_based"),
+                "tone": style_manager_for_cli.get_preference("general_tone", "neutral")
+            }
+            
+            genesis_logger_cli.log_project_creation(
+                project_name=project_name_arg,
+                initial_brief=initial_brief_arg,
+                genesis_settings_used=placeholder_settings,
+                workspace_type="local_placeholder", # Will be dynamic
+                workspace_location=f"./{project_name_arg}_placeholder" # Will be dynamic
+            )
+    register("genesis", handle_genesis, "Manages Genesis Mode operations (e.g., logging project creation).")
     plugin_manager.discover_plugins()
 
     # --- Just-in-Time Proactive Suggestions Function ---

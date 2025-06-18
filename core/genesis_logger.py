@@ -1,3 +1,5 @@
+# core/genesis_logger.py
+
 """
 Manages logging for projects created via Genesis Mode.
 
