@@ -451,8 +451,9 @@ python main.py
         * Updated `ui/cli.py` to instantiate `ProactiveLearner` with the live `user_profile`.
         * Added `display_just_in_time_suggestions` function, called periodically in the CLI loop.
         * Initially, it shows a suggestion from `ProactiveLearner` if available and not the default "no suggestions" message.
-    * [ ] **Task 20.3.3: Enhance Contextuality of CLI Just-in-Time Suggestions**
+    * [x] **Task 20.3.3: Enhance Contextuality of CLI Just-in-Time Suggestions**
         * Refine `display_just_in_time_suggestions` to use `ProjectContextualizer` and `last_command_name` to offer more targeted advice (e.g., "Noticed you're working on X, consider Y command next").
+        * Added specific suggestions for commands like `generate function`, `plan`, `read <file.py>`, `write <file.py>`, and `focus`.
     * [ ] **Task 20.3.4: Implement Just-in-Time Suggestions in Dashboard (e.g., Toasts)**
         * Explore using `st.toast` or a dismissible `st.info` box in `ui/dashboard.py` to show contextual suggestions based on user actions or periodic checks.
 

@@ -95,7 +95,7 @@ def start_cli_loop():
     # Update instantiations to include project_contextualizer
     idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
-    proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not pass else None
+    proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not None else None
 
     skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager
     agent = Agent(idea_synth=idea_synth, code_generator=code_generator, skill_manager=skill_manager) # Pass skill_manager
@@ -747,28 +747,120 @@ def start_cli_loop():
     plugin_manager.discover_plugins()
 
     # --- Just-in-Time Proactive Suggestions Function ---
-    def display_just_in_time_suggestions(last_command_name: str | None):
+    def display_just_in_time_suggestions(last_command_name: str | None, last_args: list | None = None):
         if not proactive_learner_instance or not project_contextualizer_cli:
             return # Dependencies not available
+        if last_args is None:
+            last_args = []
 
         jit_suggestions = []
-        # 1. Suggestions from ProactiveLearner (general feedback based)
-        #    We might want to show these less frequently or if highly relevant.
-        #    For now, let's get them but decide later if we show all of them.
-        # learner_suggestions = proactive_learner_instance.generate_suggestions()
-        # if learner_suggestions and "No specific proactive suggestions" not in learner_suggestions[0]:
-        #     jit_suggestions.extend(learner_suggestions[:1]) # Take one for now
 
-        # 2. Suggestions based on ProjectContextualizer and last command
-        project_context = project_contextualizer_cli.get_full_context() # This might be too verbose for JIT
-        
-        # Example: If many files were recently changed and 'git summary' was run
-        # This is a placeholder for more sophisticated logic.
-        # For now, we'll just show a generic ProactiveLearner suggestion if available.
-        # We can refine this to be more contextual.
-        
-        # For demonstration, let's show one suggestion from ProactiveLearner if available
-        # and not the default "no suggestions" message.
+        # Contextual suggestions based on last command and project state
+        if last_command_name == "git status":
+            # This requires GitAnalyzer to expose a method to check for uncommitted changes easily.
+            # For now, we'll assume a hypothetical check.
+            # if git_analyzer.has_uncommitted_changes(): # Hypothetical method
+            #     jit_suggestions.append("💡 Quick Tip: Uncommitted changes detected. Consider `git add .` and `git commit -m \"your message\"`.")
+            pass # Placeholder for more specific git status related suggestions
+
+        elif last_command_name == "generate function":
+            last_file_written = memory.recall('last_file_written') # Assuming generate function might imply a file context
+            # More accurately, we'd need to know if the generated function was written to a file.
+            # For now, this is a general suggestion after generating a function.
+            jit_suggestions.append("💡 Quick Tip: Generated a function? Consider writing tests with `generate tests <filepath>` or refactoring with `refactor <filepath> \"instruction\"`.")
+
+        elif last_command_name == "plan":
+            if memory.recall('last_plan'): # Check if a plan was successfully created
+                jit_suggestions.append("💡 Quick Tip: Plan created! Use `execute` to run it.")
+
+        elif last_command_name == "read" and last_args and last_args[0].endswith(".py"):
+            filepath_read = last_args[0]
+            jit_suggestions.append(f"💡 Quick Tip: Just viewed `{filepath_read}`. Need to refactor it? Try `refactor {filepath_read} \"your instruction\"`.")
+
+        elif last_command_name == "write":
+            last_file_written = memory.recall('last_file_written')
+            if last_file_written and last_file_written.endswith(".py"):
+                 jit_suggestions.append(f"💡 Quick Tip: Just wrote to `{last_file_written}`. Maybe generate tests for it with `generate tests {last_file_written}`?")
+
+        elif last_command_name == "focus" and last_args and last_args[0] != '--clear':
+            current_focus_text = " ".join(last_args)
+            jit_suggestions.append(f"💡 Quick Tip: Focus set to '{current_focus_text}'. You can now use `plan \"achieve my focus\"` or generate ideas with `idea about my current focus`.")
+
+
+        # Fallback to general suggestions from ProactiveLearner if no contextual ones were added
+        if not jit_suggestions:
+            learner_suggestions = proactive_learner_instance.generate_suggestions()
+            if learner_suggestions and not ("No specific proactive suggestions" in learner_suggestions[0] and len(learner_suggestions) ==1) :
+                jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}") # Show one general tip
+
+        if jit_suggestions:
+            print("\n" + "\n".join(list(set(jit_suggestions)))) # Use set to avoid duplicate suggestions
+
+    for plugin in plugin_manager.plugins:
+        plugin.register_commands(command_manager)
+
+    # DEBUG: Print all registered commands before starting the loop
+    print("\n[DEBUG] Registered commands before main loop:")
+    if command_manager.commands:
+        for cmd_name in sorted(command_manager.commands.keys()):
+            print(f"  - {cmd_name}")
+    else:
+        print("  - No commands registered in CommandManager.")
+    print("[DEBUG] End of registered commands list.\n")
+
+    print("🧠 The Giblet is awake. All commands registered. Type 'help' for a list of commands.")
+    
+    command_execution_count = 0
+    PROACTIVE_ANALYSIS_THRESHOLD = 5 # Analyze patterns every N commands
+    JIT_SUGGESTION_THRESHOLD = 2 # Offer JIT suggestions more frequently
+
+    while True:
+        try:
+            # Dynamic prompt logic...
+            current_focus = memory.recall("current_focus")
+            prompt_text = f" giblet [focus: {current_focus[:20]}...]>" if current_focus and isinstance(current_focus, str) and not current_focus.startswith("I don't have a memory for") else f" giblet [branch: {git_analyzer.repo.active_branch.name}]>" if git_analyzer.repo else " giblet> "
+            
+            user_input = input(prompt_text).strip()
+            if not user_input: continue
+
+            # Simplified parsing
+            parts = user_input.split(" ", 1)
+            command_name = parts[0].lower()
+            
+            # Handle multi-word commands like 'learn suggestions' or 'assess model'
+            potential_multi_word_command = command_name
+            temp_args_str = parts[1] if len(parts) > 1 else ""
+            
+            # Check for two-word commands
+            if temp_args_str:
+                first_arg = temp_args_str.split(" ", 1)[0]
+                if f"{command_name} {first_arg}" in command_manager.commands:
+                    command_name = f"{command_name} {first_arg}"
+                    args_str = temp_args_str.split(" ", 1)[1] if " " in temp_args_str else ""
+                    args = shlex.split(args_str) # Use shlex for better arg parsing
+                else:
+                    args = shlex.split(temp_args_str) # Use shlex for better arg parsing
+            else:
+                args = []
+            
+            executed_command_name = command_name 
+            executed_args = args # Store args for JIT suggestions
+            command_manager.execute(executed_command_name, executed_args)
+            command_execution_count += 1
+
+            # Proactive skill suggestion based on patterns
+            if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
+                patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
+                if patterns:
+                    _proactively_suggest_skill_creation_from_patterns(patterns)
+            
+            # Just-in-Time general suggestions
+            if command_execution_count % JIT_SUGGESTION_THRESHOLD == 0:
+                display_just_in_time_suggestions(executed_command_name, executed_args)
+
+        except KeyboardInterrupt:
+            print("\n🧠 Going to sleep. Goodbye!")
+        jit_suggestions = []
         learner_suggestions = proactive_learner_instance.generate_suggestions()
         if learner_suggestions and not ("No specific proactive suggestions" in learner_suggestions[0] and len(learner_suggestions) ==1) :
             jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}")
