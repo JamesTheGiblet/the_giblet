@@ -24,6 +24,7 @@ from core.user_profile import DEFAULT_PROFILE_STRUCTURE, UserProfile # New impor
 from core.skill_manager import SKILLS_DIR, SkillManager # New import for SkillManager
 from core.pattern_analyzer import PatternAnalyzer # New import
 from core.llm_provider_base import LLMProvider # Import base provider
+from core.capability_assessor import CapabilityAssessor # New import for Gauntlet
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 
 def start_cli_loop():
@@ -101,6 +102,8 @@ def start_cli_loop():
         print("  profile set <cat> <key> <val> - Sets a profile value.")
         print("  profile clear              - Clears the entire user profile.")
         print("\nLLM Configuration Commands:")
+        print("  gauntlet edit              - Opens the Gauntlet Test Editor UI.") # New help line
+        print("  assess model               - Runs capability tests on the current LLM.") # New help line
         print("  llm status                 - Shows current LLM provider and model.")
         print("  llm use <gemini|ollama>    - Sets the active LLM provider.")
         print("  llm config <provider> <key> <value> - Configure provider-specific settings (e.g., model_name, api_key, base_url).")
@@ -453,6 +456,33 @@ def start_cli_loop():
         else:
             print(f"Unknown profile action: {action}. Use 'get', 'set', or 'clear'.")
     register("profile", handle_profile, "Manages user profile settings.")
+
+    # Gauntlet Editor Command
+    def handle_gauntlet_edit(args):
+        print("🚀 Launching Gauntlet Test Editor...")
+        try:
+            subprocess.Popen([sys.executable, "-m", "streamlit", "run", "gauntlet_editor.py"])
+            print("   Editor should open in your web browser. If not, ensure Streamlit is installed.")
+        except Exception as e:
+            print(f"❌ Failed to launch Gauntlet Editor: {e}")
+    register("gauntlet edit", handle_gauntlet_edit, "Opens the interactive Gauntlet Test Editor.")
+
+    # Capability Assessor Command
+    def handle_assess_model(args):
+        if not cli_llm_provider or not cli_llm_provider.is_available():
+            print("❌ Cannot assess model: No LLM provider is available or configured correctly.")
+            return
+
+        print(f"Preparing to assess LLM: {cli_llm_provider.PROVIDER_NAME} - {cli_llm_provider.model_name}")
+        assessor = CapabilityAssessor(llm_provider=cli_llm_provider, code_generator=code_generator, idea_synthesizer=idea_synth)
+        capability_profile = assessor.run_gauntlet()
+        
+        print("\n--- LLM Capability Profile ---")
+        print(json.dumps(capability_profile, indent=2))
+        print("----------------------------\n")
+        # Future: Offer to save this to UserProfile or a dedicated capabilities cache.
+
+    register("assess model", handle_assess_model, "Runs capability tests (gauntlet) on the current LLM.")
 
     # LLM Configuration Commands
     def handle_llm_config(args):

@@ -364,7 +364,7 @@ python main.py
         * Created concrete provider classes for Gemini and Ollama.
     * [x] **Task 19.1.3: Refactor Core Modules to Use `LLMProvider`**
         * Updated `IdeaSynthesizer` and `CodeGenerator` to accept and use an `LLMProvider` instance.
-* [🚧] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
+* [x] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
     * Enhance API key management and allow users to select the active LLM provider/model via CLI and Dashboard, storing this in `UserProfile`.
     * [x] **Task 19.2.1: Update `UserProfile` for LLM Provider Configuration**
         * Added `llm_provider_config` to `UserProfile` to store active provider and specific settings (API keys, models, URLs).
@@ -374,8 +374,28 @@ python main.py
         * Implemented `llm status|use|config` commands in the CLI.
     * [x] **Task 19.2.4: Add Dashboard UI for LLM Configuration**
         * Added UI elements in the Dashboard's "Profile" tab to manage LLM provider selection and settings.
-* [ ] **Task 19.3: Add "Auto-Recognition" of Model Capabilities (Stretch Goal)**
+* [🚧] **Task 19.3: Add "Auto-Recognition" of Model Capabilities (Stretch Goal) via "Capability Gauntlet"**
     * Investigate methods for Giblet to infer capabilities of the selected LLM and adapt its strategies accordingly.
+    * [x] **Task 19.3.1: Design the "Capability Gauntlet" System**
+        * Defined the concept of a test suite (`data/gauntlet.json`), an `CapabilityAssessor` module, and CLI/UI integration for running tests and viewing a "Capability Profile".
+    * [x] **Task 19.3.1: Define Initial Capability Set and Investigation Plan**
+        * Outlined potential capabilities (modality, context window, formats, etc.) and methods for recognition (metadata, predefined maps, probing).
+    * [x] **Task 19.3.2: Implement `LLMCapabilities` Class and Predefined Map**
+        * Created `core/llm_capabilities.py` and `data/model_capabilities.json` to store and retrieve known model capabilities.
+    * [x] **Task 19.3.3: Implement `CapabilityAssessor` Module**
+        * Developed `core/capability_assessor.py` to load `gauntlet.json` and run programmatic tests (code generation, JSON adherence).
+    * [x] **Task 19.3.4: Integrate Gauntlet into CLI and Dashboard**
+        * Added `assess model` command to CLI.
+        * Added UI in Dashboard's "Profile" tab to run the gauntlet and view results.
+        * Added `gauntlet edit` command and UI button to launch `gauntlet_editor.py`.
+    * [ ] **Task 19.3.5: Integrate Basic Capability Checks into Core Modules**
+        * Begin modifying `IdeaSynthesizer`, `CodeGenerator`, and `Agent` to query `LLMCapabilities` and make simple adjustments (e.g., to `max_tokens` or prompt formatting).
+    * [ ] **Task 19.3.6: Research and Implement Provider Metadata Fetching (Gemini, Ollama)**
+        * Investigate and add code to `LLMCapabilities` to query provider APIs for model details, if available.
+    * [ ] **Task 19.3.7: Store and Utilize Gauntlet-Generated Profiles**
+        * Enhance `LLMCapabilities` to load and prioritize gauntlet-generated profiles (e.g., from `UserProfile` or a cache) over predefined maps.
+    * [ ] **Task 19.3.8: Expand `gauntlet.json` with More Test Categories and Levels**
+        * Add tests for other capabilities like context window limits, instruction following, specific language features, etc.
 
 ---
 ## Phase 20: 📚 The Proactive Knowledge Weaver

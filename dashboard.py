@@ -6,6 +6,7 @@ import difflib # <<< NEW IMPORT at the top
 from pathlib import Path
 import json # Add this
 import shlex # For parsing plan steps
+import subprocess # For launching the gauntlet editor
 
 # This line ensures that the script can find your 'core' modules
 sys.path.append(str(Path(__file__).parent))
@@ -17,6 +18,8 @@ from core.memory import Memory
 from core.user_profile import UserProfile, DEFAULT_PROFILE_STRUCTURE # Ensure UserProfile is imported
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
+from core.code_generator import CodeGenerator # For CapabilityAssessor
+from core.capability_assessor import CapabilityAssessor # For the new UI feature
 
 # Function to sanitize strings for display, especially on Windows with 'charmap' issues
 def sanitize_for_display(text: str) -> str:
@@ -112,7 +115,7 @@ def main():
         # ... idea/plan generation expanders ...
 
     st.title("🧠 The Giblet: Project Cockpit")
-
+ 
     # --- Main Tab Navigation ---
     # The st.radio navigation is now removed from the main panel.
     # The active tab is controlled by st.session_state.active_tab, set by sidebar buttons.
@@ -600,6 +603,39 @@ def main():
             new_providers_settings["ollama"] = updated_ollama_config
             if update_profile_setting("llm_provider_config", "providers", new_providers_settings): # Save the whole 'providers' dict
                 st.success("Ollama settings updated.")
+
+        st.divider()
+        st.subheader("🔬 LLM Capability Assessment (Gauntlet)")
+        st.caption("Run a series of tests against the currently configured LLM to assess its capabilities.")
+
+        if 'gauntlet_results' not in st.session_state:
+            st.session_state.gauntlet_results = None
+
+        if st.button("Run LLM Capability Gauntlet", key="run_gauntlet_btn"):
+            st.session_state.gauntlet_results = None # Clear previous results
+            if not dashboard_llm_provider or not dashboard_llm_provider.is_available():
+                st.error("Cannot run assessment: The configured LLM provider is not available.")
+            else:
+                with st.spinner(f"Running Capability Gauntlet on {dashboard_llm_provider.PROVIDER_NAME} ({dashboard_llm_provider.model_name})... This may take some time."):
+                    try:
+                        # Instantiate necessary components for the assessor
+                        # These use the dashboard's configured LLM provider
+                        cg_for_assessment = CodeGenerator(user_profile=user_profile_instance, memory_system=memory_instance, llm_provider=dashboard_llm_provider)
+                        is_for_assessment = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory_instance, llm_provider=dashboard_llm_provider)
+                        
+                        assessor = CapabilityAssessor(llm_provider=dashboard_llm_provider, code_generator=cg_for_assessment, idea_synthesizer=is_for_assessment)
+                        st.session_state.gauntlet_results = assessor.run_gauntlet()
+                        st.success("Capability Gauntlet finished!")
+                    except Exception as e_gauntlet:
+                        st.error(f"An error occurred during the Gauntlet run: {sanitize_for_display(str(e_gauntlet))}")
+        
+        if st.session_state.gauntlet_results:
+            st.json(st.session_state.gauntlet_results)
+
+        if st.button("✏️ Edit Gauntlet Tests", key="edit_gauntlet_tests_btn"):
+            st.info("Attempting to launch the Gauntlet Test Editor in a new process...")
+            subprocess.Popen([sys.executable, "-m", "streamlit", "run", "gauntlet_editor.py"])
+            st.caption("If the editor doesn't open, ensure Streamlit is installed and `gauntlet_editor.py` is in the project root.")
 
         st.divider()
         st.subheader("Feedback on Last AI Interaction")
