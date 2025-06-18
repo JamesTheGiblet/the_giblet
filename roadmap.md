@@ -454,13 +454,19 @@ python main.py
     * [x] **Task 20.3.3: Enhance Contextuality of CLI Just-in-Time Suggestions**
         * Refine `display_just_in_time_suggestions` to use `ProjectContextualizer` and `last_command_name` to offer more targeted advice (e.g., "Noticed you're working on X, consider Y command next").
         * Added specific suggestions for commands like `generate function`, `plan`, `read <file.py>`, `write <file.py>`, and `focus`.
-    * [ ] **Task 20.3.4: Implement Just-in-Time Suggestions in Dashboard (e.g., Toasts)**
+    * [x] **Task 20.3.4: Implement Just-in-Time Suggestions in Dashboard (e.g., Toasts)**
         * Explore using `st.toast` or a dismissible `st.info` box in `ui/dashboard.py` to show contextual suggestions based on user actions or periodic checks.
+        * [x] **Task 20.3.4.1: Instantiate `ProactiveLearner` for JIT in Dashboard**
+            * Created `proactive_learner_jit` instance in `dashboard.py` using the live `user_profile_instance`.
+        * [x] **Task 20.3.4.2: Implement `show_jit_toast_suggestion` Helper Function**
+            * Developed a function to generate and display `st.toast` messages based on `action_context` and `ProactiveLearner`/`ProjectContextualizer` inputs.
+        * [x] **Task 20.3.4.3: Integrate JIT Toasts into Dashboard Actions**
+            * Added calls to `show_jit_toast_suggestion` after key actions like code/test generation, profile updates, plan generation, and file viewing.
 
 ## Phase 21: 🧠 The Preference & Style Engine (Foundation)
     **Goal:** Build the core systems for learning, storing, and managing your personal development "fingerprint."
     **Tasks:**
-        * [ ] **Task 21.1: Implement `style_preference.py` Module:** Create the class and methods for managing the `style_preference.json` file, which will store your preferred formats, tones, and defaults.
+        * [x] **Task 21.1: Implement `style_preference.py` Module:** Create the class and methods for managing the `style_preference.json` file, which will store your preferred formats, tones, and defaults.
         * [ ] **Task 21.2: Implement Genesis Logging:** Create the methods to initialize and write to `genesis_log.json`, which will track every project created via this mode.
         * [ ] **Task 21.3: Build "My Vibe" Dashboard UI:** Create a new tab in the Cockpit where you can view and manually edit the preferences stored in `style_preference.json`.
 

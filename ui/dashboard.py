@@ -20,6 +20,7 @@ from core.user_profile import UserProfile, DEFAULT_PROFILE_STRUCTURE # Ensure Us
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.code_generator import CodeGenerator # For CapabilityAssessor
+from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
 from core.capability_assessor import CapabilityAssessor # For the new UI feature
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
@@ -85,6 +86,38 @@ def show_proactive_suggestions_tab():
             st.error(f"Error generating suggestions: {sanitize_for_display(str(e))}")
             st.caption("Please ensure 'data/user_profile.json' is accessible from the directory where Streamlit is run, and that it's a valid JSON file.")
 
+# --- JIT Suggestion Helper ---
+def show_jit_toast_suggestion(action_context: str, learner: ProactiveLearner | None, contextualizer: ProjectContextualizer | None, last_args: dict | None = None):
+    if not learner or not contextualizer:
+        return
+
+    suggestion_text = None
+
+    if action_context == "code_generated":
+        suggestion_text = "💡 Code generated! Consider writing tests or refactoring it using the 'Generator' or 'Refactor' tabs."
+    elif action_context == "tests_generated":
+        if last_args and last_args.get("filepath"):
+            suggestion_text = f"💡 Tests generated for {last_args.get('filepath')}! You can run them using `pytest` in your terminal."
+        else:
+            suggestion_text = "💡 Tests generated! Remember to run them using `pytest`."
+    elif action_context == "profile_updated":
+        suggestion_text = "💡 Profile updated! Your new preferences will influence future AI interactions."
+    elif action_context == "plan_generated":
+        suggestion_text = "💡 Plan generated! Review it carefully and then hit 'Execute Plan'."
+    elif action_context == "file_viewed":
+        if last_args and last_args.get("filepath", "").endswith(".py"):
+            suggestion_text = f"💡 Viewed {last_args.get('filepath')}! Need to make changes? Try the 'Refactor' tab."
+
+    # Fallback to a general suggestion if no specific one was triggered
+    if not suggestion_text:
+        general_suggestions = learner.generate_suggestions()
+        if general_suggestions and not ("No specific proactive suggestions" in general_suggestions[0] and len(general_suggestions) == 1):
+            suggestion_text = f"💡 Quick Tip: {general_suggestions[0]}" # Show one general tip
+
+    if suggestion_text:
+        st.toast(suggestion_text, icon="💡")
+
+
 def main():
     """
     The main function for the Streamlit dashboard.
@@ -99,6 +132,7 @@ def main():
     # Note: API calls will use their own instances initialized in api.py
     memory_instance = Memory()
     user_profile_instance = UserProfile(memory_system=memory_instance)
+    style_manager_for_dashboard = StylePreferenceManager() # Instantiate StylePreferenceManager
 
     # Helper function to get the configured LLM provider for Dashboard
     def get_dashboard_llm_provider(profile: UserProfile) -> LLMProvider | None:
@@ -141,6 +175,11 @@ def main():
     # Instantiate ProjectContextualizer for the Dashboard
     # Assumes dashboard runs from project root. Memory instance is 'memory_instance'.
     project_contextualizer_dashboard = ProjectContextualizer(memory_system=memory_instance, project_root=".")
+    
+    # Instantiate ProactiveLearner for JIT suggestions using the live UserProfile
+    proactive_learner_jit = None
+    if ProactiveLearner.__name__ != "ProactiveLearner" or ProactiveLearner.__module__ != "__main__": # Check if not fallback
+        proactive_learner_jit = ProactiveLearner(user_profile=user_profile_instance)
 
     # --- Sidebar ---
     with st.sidebar:
@@ -248,7 +287,8 @@ def main():
             idea_synth = IdeaSynthesizer(user_profile=user_profile_instance,
                                          memory_system=memory_instance,
                                          llm_provider=dashboard_llm_provider,
-                                         project_contextualizer=project_contextualizer_dashboard)
+                                         project_contextualizer=project_contextualizer_dashboard,
+                                         style_preference_manager=style_manager_for_dashboard) # Pass StylePreferenceManager
             st.header("Code Generator")
             st.write("Generate high-quality, documented Python code from a simple prompt.")
 
@@ -267,6 +307,7 @@ def main():
                                 response.raise_for_status()
                                 generated_code = response.json().get("generated_code", "# An error occurred.")
                                 st.code(generated_code, language="python")
+                                show_jit_toast_suggestion("code_generated", proactive_learner_jit, project_contextualizer_dashboard)
                             except httpx.RequestError as e_api:
                                 st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
                             except Exception as e_gen:
@@ -289,6 +330,7 @@ def main():
                                 response.raise_for_status()
                                 generated_code = response.json().get("generated_code", "# An error occurred.")
                                 st.code(generated_code, language="python")
+                                show_jit_toast_suggestion("tests_generated", proactive_learner_jit, project_contextualizer_dashboard, {"filepath": test_file_path})
                              except httpx.RequestError as e_api:
                                 st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
                              except Exception as e_gen:
@@ -325,6 +367,7 @@ def main():
                         elif data.get("plan"):
                             st.session_state.agent_plan = data.get("plan")
                             st.success("Plan generated successfully!")
+                            show_jit_toast_suggestion("plan_generated", proactive_learner_jit, project_contextualizer_dashboard)
                         else:
                             st.error("Received an unexpected response from the plan generation API.")
                     except httpx.RequestError as e_req:
@@ -469,6 +512,7 @@ def main():
                         lang = file_data.get('filepath', '').split('.')[-1]
                         if lang == 'py': lang = 'python'
                         if lang == 'md': lang = 'markdown'
+                        show_jit_toast_suggestion("file_viewed", proactive_learner_jit, project_contextualizer_dashboard, {"filepath": selected_file})
 
                         st.code(file_data.get("content", "Could not load content."), language=lang)
 
@@ -539,6 +583,7 @@ def main():
                 response.raise_for_status()
                 fetch_profile() # Refresh profile data in session state
                 st.toast(f"Profile setting '{category}.{key}' updated!", icon="🎉")
+                show_jit_toast_suggestion("profile_updated", proactive_learner_jit, project_contextualizer_dashboard)
                 return True
             except Exception as e:
                 st.error(f"Failed to update {category}.{key}: {sanitize_for_display(str(e))}")
@@ -676,12 +721,14 @@ def main():
                         cg_for_assessment = CodeGenerator(user_profile=user_profile_instance,
                                                           memory_system=memory_instance,
                                                           llm_provider=dashboard_llm_provider,
-                                                          project_contextualizer=project_contextualizer_dashboard)
+                                                          project_contextualizer=project_contextualizer_dashboard,
+                                                          style_preference_manager=style_manager_for_dashboard) # Pass StylePreferenceManager
                         
                         is_for_assessment = IdeaSynthesizer(user_profile=user_profile_instance,
                                                             memory_system=memory_instance,
                                                             llm_provider=dashboard_llm_provider,
-                                                            project_contextualizer=project_contextualizer_dashboard)
+                                                            project_contextualizer=project_contextualizer_dashboard,
+                                                            style_preference_manager=style_manager_for_dashboard) # Pass StylePreferenceManager
                         
                         assessor = CapabilityAssessor(llm_provider=dashboard_llm_provider, code_generator=cg_for_assessment, idea_synthesizer=is_for_assessment)
                         st.session_state.gauntlet_results = assessor.run_gauntlet()

@@ -6,6 +6,7 @@ from pathlib import Path
 import shlex # Add shlex if not already imported at the top of api.py
 import json # Add this
 from typing import Any # Import Any
+from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -30,7 +31,8 @@ app = FastAPI(
     version="0.1.0"
 )
 memory = Memory()
-roadmap_manager = RoadmapManager(memory_system=memory)
+style_manager_for_api = StylePreferenceManager() # Instantiate StylePreferenceManager
+roadmap_manager = RoadmapManager(memory_system=memory, style_preference_manager=style_manager_for_api) # Pass it here
 user_profile_instance = UserProfile(memory_system=memory) # Instantiate UserProfile, renamed to avoid conflict
 # Instantiate CommandManager for the API, passing the memory system
 command_manager_for_api = command_manager.CommandManager(memory_system=memory)

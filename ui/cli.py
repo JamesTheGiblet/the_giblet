@@ -26,6 +26,7 @@ from core.pattern_analyzer import PatternAnalyzer # New import
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.capability_assessor import CapabilityAssessor # New import for Gauntlet
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
+from core.style_preference import StylePreferenceManager # Import StylePreferenceManager
 from core.project_contextualizer import ProjectContextualizer
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
@@ -42,6 +43,7 @@ def start_cli_loop():
     # --- Initialization ---
     memory = Memory() # Memory first
     user_profile = UserProfile(memory_system=memory) # UserProfile needs memory
+    style_manager_for_cli = StylePreferenceManager() # Instantiate StylePreferenceManager
 
     # Helper function to get the configured LLM provider for CLI
     def get_cli_llm_provider(profile: UserProfile) -> LLMProvider | None:
@@ -82,18 +84,23 @@ def start_cli_loop():
     if not cli_llm_provider or not cli_llm_provider.is_available():
         print(f"⚠️ CLI: Configured LLM provider ({cli_llm_provider.PROVIDER_NAME if cli_llm_provider else 'N/A'}) is not available. LLM features may be limited.")
         # CLI might be more tolerant or simply print warnings, as it's interactive.
-        
-    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
+
+    # Instantiate RoadmapManager for local 'todo' commands
+    # The main 'roadmap' command now uses the API, but 'todo' might still use local logic.
+    roadmap_manager_cli = roadmap_manager.RoadmapManager(memory_system=memory, style_preference_manager=style_manager_for_cli)
+
     automator = Automator()
     git_analyzer = GitAnalyzer()
     command_manager = CommandManager()
 
     # Instantiate ProjectContextualizer - assumes CLI runs from project root or similar
     # The memory instance is already created.
-    project_contextualizer_cli = ProjectContextualizer(memory_system=memory, project_root=".")
+    project_contextualizer_cli = ProjectContextualizer(memory_system=memory, project_root=".") # Added project_root
 
     # Update instantiations to include project_contextualizer
-    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
+    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider,
+                                 project_contextualizer=project_contextualizer_cli,
+                                 style_preference_manager=style_manager_for_cli) # Pass style_manager
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
     proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not None else None
 
@@ -261,13 +268,13 @@ def start_cli_loop():
                 # This part of the code would need to be refactored to use an API
                 # or have roadmap_manager re-instantiated if 'todo' commands
                 # are to remain functional with the local RoadmapManager.
-                roadmap_manager.add_shared_task(description, assignee)
+                roadmap_manager_cli.add_shared_task(description, assignee) # Use the CLI's roadmap_manager instance
 
             except ValueError as e:
                 print(f"Error: {e}")
                 print('Usage: todo add "@<user>" "<description>" (ensure description is quoted if it contains spaces)')
         elif sub_command == "list":
-            tasks = roadmap_manager.view_shared_tasks()
+            tasks = roadmap_manager_cli.view_shared_tasks() # Use the CLI's roadmap_manager instance
             if tasks:
                 print("\n--- Shared To-Do List ---")
                 for task in tasks:
@@ -860,18 +867,12 @@ def start_cli_loop():
 
         except KeyboardInterrupt:
             print("\n🧠 Going to sleep. Goodbye!")
-        jit_suggestions = []
-        learner_suggestions = proactive_learner_instance.generate_suggestions()
-        if learner_suggestions and not ("No specific proactive suggestions" in learner_suggestions[0] and len(learner_suggestions) ==1) :
-            jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}")
+            break # Exit the while True loop
 
-        if jit_suggestions:
-            print("\n" + "\n".join(jit_suggestions)) # Print before the next prompt
-
-    for plugin in plugin_manager.plugins:
-        plugin.register_commands(command_manager)
-
-    # DEBUG: Print all registered commands before starting the loop
+    # The following code (plugin registration, debug print) was duplicated.
+    # It should be outside the while loop, or if intended per loop, handled differently.
+    # Given its nature, it seems like it was a copy-paste error and should only be before the loop.
+    # I'm removing the duplicated block that was inside the loop.
     print("\n[DEBUG] Registered commands before main loop:")
     if command_manager.commands:
         for cmd_name in sorted(command_manager.commands.keys()):
@@ -879,50 +880,3 @@ def start_cli_loop():
     else:
         print("  - No commands registered in CommandManager.")
     print("[DEBUG] End of registered commands list.\n")
-
-    print("🧠 The Giblet is awake. All commands registered. Type 'help' for a list of commands.")
-    
-    command_execution_count = 0
-    PROACTIVE_ANALYSIS_THRESHOLD = 5 # Analyze patterns every N commands
-    JIT_SUGGESTION_THRESHOLD = 3 # Offer JIT suggestions every N commands
-
-    while True:
-        try:
-            # Dynamic prompt logic...
-            current_focus = memory.recall("current_focus")
-            prompt = f" giblet [focus: {current_focus[:20]}...]>" if current_focus else f" giblet [branch: {git_analyzer.repo.active_branch.name}]>" if git_analyzer.repo else " giblet> "
-            
-            user_input = input(prompt).strip()
-            if not user_input: continue
-
-            # Simplified parsing
-            parts = user_input.split(" ", 1)
-            command_name = parts[0].lower()
-            # Handle multi-word commands like 'roadmap done'
-            if len(parts) > 1 and f"{command_name} {parts[1].split()[0]}" in command_manager.commands:
-                command_name = f"{command_name} {parts[1].split()[0]}"
-                args = parts[1].split()[1:]
-            else:
-                args = parts[1].split() if len(parts) > 1 else []
-            
-            # Store command_name before execution for JIT suggestions
-            executed_command_name = command_name 
-            command_manager.execute(executed_command_name, args)
-            command_execution_count += 1
-
-            # Proactive skill suggestion based on patterns
-            if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
-                patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
-                if patterns:
-                    _proactively_suggest_skill_creation_from_patterns(patterns)
-            
-            # Just-in-Time general suggestions
-            if command_execution_count % JIT_SUGGESTION_THRESHOLD == 0:
-                display_just_in_time_suggestions(executed_command_name)
-
-        except KeyboardInterrupt:
-            print("\n🧠 Going to sleep. Goodbye!")
-            break
-        except Exception as e:
-            print(f"\n❌ An unexpected error occurred: {e}")
-            logging.exception("An unhandled exception occurred in the CLI loop.")

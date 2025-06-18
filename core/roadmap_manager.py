@@ -4,16 +4,18 @@ from pathlib import Path
 import uuid # <<< NEW IMPORT at the top of the file
 import json # <<< NEW IMPORT at the top of the file
 from datetime import datetime # Ensure datetime is imported
+from .style_preference import StylePreferenceManager # Import StylePreferenceManager
 
 # (The ROADMAP_FILE definition is the same)
 ROADMAP_FILE = Path(__file__).parent.parent / "roadmap.md"
 
 class RoadmapManager:
-    def __init__(self, memory_system):
+    def __init__(self, memory_system, style_preference_manager: StylePreferenceManager):
         # (__init__ is the same)
         self.memory = memory_system
+        self.style_prefs = style_preference_manager
         self.tasks = self._load_and_parse_roadmap()
-        print("🗺️ Roadmap Manager initialized.")
+        print(f"🗺️ Roadmap Manager initialized. Style preferences active: {self.style_prefs is not None}")
 
     def _load_and_parse_roadmap(self) -> list[dict]:
         # (_load_and_parse_roadmap is the same)
@@ -35,14 +37,49 @@ class RoadmapManager:
     def view_roadmap(self):
         # (view_roadmap is the same)
         if not self.tasks:
-            print("No tasks found in roadmap.")
+            print("No tasks found in the roadmap.")
             return
-        print("\n--- Project Roadmap ---")
-        for task in self.tasks:
-            icon = "✅" if task["status"] == "complete" else "🚧"
-            print(f" {icon} {task['description']}")
-        print("-----------------------\n")
 
+        preferred_format = self.style_prefs.get_preference("roadmap.default_format", "simple_list")
+        # roadmap_tone = self.style_prefs.get_preference("roadmap.default_tone", "neutral") # Not used yet
+
+        print(f"\n--- Project Roadmap (Format: {preferred_format}) ---")
+
+        if preferred_format == "phase_based":
+            phases: dict[str, list] = {}
+            current_phase_name = "General Tasks" # Default phase for tasks before any "Phase X" header
+            phases[current_phase_name] = []
+
+            for task in self.tasks:
+                # Check if the task description itself is a phase header
+                if task['description'].lower().startswith("phase ") or "phase " in task['description'].lower() and ":" in task['description']:
+                    current_phase_name = task['description']
+                    if current_phase_name not in phases:
+                        phases[current_phase_name] = []
+                    # Don't add the phase header itself as a task under itself, unless it's also marked as a task
+                    if not (task['description'] == current_phase_name and task['status'] == 'incomplete' and not any(sub_task['description'] == task['description'] for sub_task in phases[current_phase_name])):
+                         # If it's a phase header AND a task, it might be added if it's not already the key
+                         pass # Phase headers are keys, tasks go into the list
+                else:
+                    if current_phase_name not in phases: # Should be initialized
+                        phases[current_phase_name] = []
+                    phases[current_phase_name].append(task)
+            
+            for phase_name, phase_tasks in phases.items():
+                print(f"\n## {phase_name}")
+                for task_item in phase_tasks:
+                    icon = "✅" if task_item["status"] == "complete" else "🚧"
+                    print(f" {icon} {task_item['description']}")
+        elif preferred_format == "simple_list": # Default or explicit simple_list
+            for task in self.tasks:
+                icon = "✅" if task["status"] == "complete" else "🚧"
+                print(f" {icon} {task['description']}")
+        else: # Fallback for unknown formats
+            print(f"(Unsupported format: {preferred_format}. Displaying as simple list.)")
+            for task in self.tasks:
+                icon = "✅" if task["status"] == "complete" else "🚧"
+                print(f" {icon} {task['description']}")
+        print("-----------------------------------\n")
     def complete_task(self, task_description: str) -> bool:
         # (complete_task is the same)
         print(f"🗺️ Attempting to complete task: '{task_description}'...")
