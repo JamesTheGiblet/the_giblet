@@ -403,8 +403,25 @@ python main.py
 
 ---
 ## Phase 20: 📚 The Proactive Knowledge Weaver (Placeholder)
-* [ ] **Task 20.1: Implement Proactive Learning from User Feedback & Profile**
+* [🚧] **Task 20.1: Implement Proactive Learning from User Feedback & Profile**
     * Develop a module to analyze `feedback_log` and `UserProfile` data to automatically suggest or adapt default prompt templates or agent behaviors.
+    * [x] **Task 20.1.1: Design `ProactiveLearner` Class and Data Flow in `core/proactive_learner.py`**
+        * Defined inputs (`UserProfile` instance providing feedback log and preferences) and outputs (list of string suggestions).
+        * Outlined methods for feedback analysis (`analyze_feedback`), profile preference analysis (`analyze_user_profile_preferences`), and suggestion generation (`generate_suggestions`).
+    * [x] **Task 20.1.2: Implement Basic Feedback Analysis Logic in `ProactiveLearner`**
+        * Developed `analyze_feedback` to parse feedback entries, calculate average ratings per `context_id`, and collect comments.
+    * [x] **Task 20.1.3: Implement User Profile Preference Analysis in `ProactiveLearner`**
+        * Developed `analyze_user_profile_preferences` to extract relevant preferences (e.g., `ai_verbosity`, `ai_tone`, `idea_synth_persona`) from `UserProfile`.
+    * [x] **Task 20.1.4: Implement Initial Suggestion Generation Mechanism in `ProactiveLearner`**
+        * Created `generate_suggestions` to formulate actionable string-based suggestions based on combined feedback and profile analysis.
+    * [x] **Task 20.1.5: Integrate `ProactiveLearner` for Suggestion Display (CLI/Dashboard)**
+        * This will involve adding a CLI command (e.g., `giblet learn suggestions`) or a dashboard section to trigger the learner and show its suggestions to the user.
+    * [x] **Task 20.1.5.1: Add `learn suggestions` CLI Command**
+        * Implemented a new command `giblet learn suggestions` in `ui/cli.py` to instantiate `ProactiveLearner` (using `UserProfilePlaceholder` for now) and display its suggestions. Added basic error handling and output styling.
+    * [x] **Task 20.1.5.2: Add "Proactive Suggestions" Section to Dashboard**
+        * Created a new "Proactive Suggestions" tab in `ui/dashboard.py` with a button to trigger `ProactiveLearner` (using `UserProfilePlaceholder`) and display its suggestions. Includes spinner and error/info messages.
+    * [ ] **Task 20.1.6: Refine `context_id` Logging for Feedback**
+        * Ensure that feedback entries consistently log a meaningful `context_id` (e.g., specific prompt template name, agent task identifier) to improve the specificity and accuracy of proactive learning.
 * [ ] **Task 20.2: Build a "Project Contextualizer" Module**
     * Create a system to analyze the current project's structure and recent changes to provide more deeply contextual information to LLMs.
 * [ ] **Task 20.3: Introduce "Just-in-Time" Proactive Suggestions in UI/CLI**

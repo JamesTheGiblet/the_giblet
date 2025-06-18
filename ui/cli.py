@@ -26,6 +26,16 @@ from core.pattern_analyzer import PatternAnalyzer # New import
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.capability_assessor import CapabilityAssessor # New import for Gauntlet
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
+# --- Proactive Learner Imports (for new 'learn' command) ---
+try:
+    # Assuming ProactiveLearner is in the_giblet.core
+    from core.proactive_learner import ProactiveLearner, UserProfilePlaceholder
+    # from core.user_profile import UserProfile # Ideal future import
+except ImportError as e:
+    print(f"Warning: ProactiveLearner module could not be loaded: {e}. 'learn suggestions' command will be unavailable.")
+    # Fallback for ProactiveLearner and UserProfilePlaceholder
+    class ProactiveLearner: pass
+    class UserProfilePlaceholder: pass
 
 def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
@@ -113,6 +123,7 @@ def start_cli_loop():
         print("  skills refresh             - Re-scans the skills directory.")
         print("  skills create_from_plan <SkillName> [\"trigger phrase\"] - Generates a new skill from the last executed plan.")
         print("\nHistory Commands:")
+        print("  learn suggestions          - Analyzes feedback & profile for proactive suggestions.") # New help line
         print("  history analyze_patterns   - Analyzes command history for potential skill candidates.")
         print("  history commands [limit]   - Shows recent command history (default limit 10).")
     register("help", handle_help, "Shows this help message.")
@@ -613,6 +624,41 @@ def start_cli_loop():
                 print("Skill creation cancelled.")
         else:
             print(f"Unknown skills action: '{action}'. Valid actions: list, refresh, create_from_plan.")
+    register("skills", handle_skills, "Manages and lists available agent skills.")
+
+    # Proactive Learning Command
+    def handle_learn_suggestions(args):
+        """
+        Analyzes user feedback and profile to provide proactive suggestions.
+        """
+        # Check if the ProactiveLearner class is the fallback version
+        if ProactiveLearner.__name__ == "ProactiveLearner" and ProactiveLearner.__module__ == __name__: # Checks if it's the fallback
+            print("❌ ProactiveLearner module could not be loaded. Suggestions unavailable.")
+            return
+        
+        print("🧠 Attempting to generate proactive suggestions...")
+        try:
+            # Note: UserProfilePlaceholder loads "data/user_profile.json" relative to CWD.
+            # Ensure this file exists or is created by UserProfile logic.
+            # Ideally, this would use the main UserProfile from core.user_profile
+            user_profile_instance_for_learner = UserProfilePlaceholder() # Use placeholder for now
+            learner = ProactiveLearner(user_profile_instance_for_learner)
+            suggestions = learner.generate_suggestions()
+
+            if suggestions:
+                print("\n--- Proactive Suggestions ---")
+                for i, suggestion in enumerate(suggestions):
+                    if "No specific proactive suggestions" in suggestion and len(suggestions) == 1:
+                        print(f"   {suggestion}") # Neutral display for default message
+                    else:
+                        print(f" {i+1}. {suggestion}")
+                print("---------------------------\n")
+            # ProactiveLearner returns a default message if no suggestions, so 'else' here is unlikely.
+        except Exception as e:
+            print(f"❌ Error generating suggestions: {e}")
+            print("   Please ensure 'data/user_profile.json' is accessible and valid.")
+    register("learn suggestions", handle_learn_suggestions, "Provides proactive learning suggestions.")
+
     register("skills", handle_skills, "Manages and lists available agent skills.")
 
     # Helper function for suggesting and creating skills from patterns

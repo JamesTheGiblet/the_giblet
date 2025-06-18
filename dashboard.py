@@ -2,6 +2,7 @@
 import streamlit as st
 import httpx
 import sys
+import os
 import difflib # <<< NEW IMPORT at the top
 from pathlib import Path
 import json # Add this
@@ -21,6 +22,17 @@ from core.llm_providers import GeminiProvider, OllamaProvider # Import specific 
 from core.code_generator import CodeGenerator # For CapabilityAssessor
 from core.capability_assessor import CapabilityAssessor # For the new UI feature
 
+# --- Proactive Learner Imports (from snippet) ---
+try:
+    # Assuming ProactiveLearner is in the_giblet.core
+    from core.proactive_learner import ProactiveLearner, UserProfilePlaceholder
+    # from core.user_profile import UserProfile # Ideal future import if UserProfilePlaceholder is not used
+except ImportError as e:
+    st.error(f"Critical Import Error (ProactiveLearner): {e}. Dashboard features relying on this module may fail.")
+    # Fallback for ProactiveLearner and UserProfilePlaceholder
+    class ProactiveLearner: pass
+    class UserProfilePlaceholder: pass
+
 # Function to sanitize strings for display, especially on Windows with 'charmap' issues
 def sanitize_for_display(text: str) -> str:
     """
@@ -36,6 +48,41 @@ def sanitize_for_display(text: str) -> str:
     except Exception:
         # Fallback if 'charmap' processing itself fails for some reason
         return text.encode('utf-8', 'replace').decode('utf-8')
+
+# --- New Tab Function (from snippet) ---
+def show_proactive_suggestions_tab():
+    st.header("🧠 Proactive Learning & Suggestions")
+    st.write("""
+        The Giblet analyzes your feedback and profile settings to offer suggestions
+        for improving prompt templates or agent behaviors.
+    """)
+
+    if ProactiveLearner.__name__ == "ProactiveLearner" and ProactiveLearner.__module__ == "__main__": # Check if fallback was used
+        st.error("ProactiveLearner module could not be loaded. Suggestions feature is unavailable.")
+        return
+
+    if st.button("🔍 Get Proactive Suggestions", key="get_proactive_suggestions_btn"):
+        try:
+            # Note: UserProfilePlaceholder loads "data/user_profile.json" relative to CWD.
+            # Ensure this file exists or is created by UserProfile logic.
+            # Ideally, this would use the main UserProfile from core.user_profile
+            # For now, using the placeholder as per the snippet's design.
+            user_profile_placeholder_instance = UserProfilePlaceholder()
+            learner = ProactiveLearner(user_profile_placeholder_instance)
+            
+            with st.spinner("Analyzing feedback and profile..."):
+                suggestions = learner.generate_suggestions()
+
+            if suggestions:
+                st.subheader("Here are some suggestions for you:")
+                for i, suggestion in enumerate(suggestions):
+                    if "No specific proactive suggestions" in suggestion and len(suggestions) == 1:
+                        st.success(suggestion) 
+                    else:
+                        st.info(f"{i+1}. {suggestion}")
+        except Exception as e:
+            st.error(f"Error generating suggestions: {sanitize_for_display(str(e))}")
+            st.caption("Please ensure 'data/user_profile.json' is accessible from the directory where Streamlit is run, and that it's a valid JSON file.")
 
 def main():
     """
@@ -94,8 +141,7 @@ def main():
     with st.sidebar:
         st.header("🚀 Quick Actions")
         
-        # Navigation buttons moved to sidebar
-        tab_names = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile"]
+        tab_names = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🧠 Proactive Suggestions"] # Added new tab
         if 'active_tab' not in st.session_state:
             st.session_state.active_tab = tab_names[0] # Default to the first tab
 
@@ -121,8 +167,7 @@ def main():
     # The active tab is controlled by st.session_state.active_tab, set by sidebar buttons.
     
     # Ensure active_tab is initialized if it somehow got removed from session_state
-    # (though the sidebar logic should handle this)
-    all_tab_options = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile"]
+    all_tab_options = ["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🧠 Proactive Suggestions"] # Added new tab
     if 'active_tab' not in st.session_state:
         st.session_state.active_tab = all_tab_options[0]
     elif st.session_state.active_tab not in all_tab_options: # If active_tab is an invalid old value
@@ -690,6 +735,9 @@ def main():
                 fetch_profile() # Refresh to show empty profile
             except Exception as e_clear:
                 st.error(f"Failed to clear profile: {sanitize_for_display(str(e_clear))}")
+
+    elif st.session_state.active_tab == "🧠 Proactive Suggestions":
+        show_proactive_suggestions_tab()
 
 if __name__ == "__main__":
     main()
