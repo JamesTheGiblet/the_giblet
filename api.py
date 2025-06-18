@@ -90,7 +90,11 @@ if not api_llm_provider or not api_llm_provider.is_available():
 # Assumes API runs from project root or similar. Memory instance is 'memory'.
 project_contextualizer_api = ProjectContextualizer(memory_system=memory, project_root=".")
 
-idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider, project_contextualizer=project_contextualizer_api)
+idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance,
+                                     memory_system=memory,
+                                     llm_provider=api_llm_provider,
+                                     project_contextualizer=project_contextualizer_api,
+                                     style_preference_manager=style_manager_for_api) # Pass StylePreferenceManager
 code_generator = CodeGenerator(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider, project_contextualizer=project_contextualizer_api)
 skill_manager_for_api = SkillManager(user_profile=user_profile_instance, memory=memory, command_manager_instance=command_manager_for_api)
 agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) 

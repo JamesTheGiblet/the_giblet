@@ -10,7 +10,7 @@ import shlex # For parsing plan steps
 import subprocess # For launching the gauntlet editor
 
 # This line ensures that the script can find your 'core' modules
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from core.roadmap_manager import RoadmapManager
 from core.git_analyzer import GitAnalyzer

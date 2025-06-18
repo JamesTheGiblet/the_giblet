@@ -23,7 +23,7 @@ class ProjectContextualizer:
         """
         self.memory = memory_system
         self.project_root = Path(project_root).resolve()
-        self.git_analyzer = GitAnalyzer(str(self.project_root))
+        self.git_analyzer = GitAnalyzer()
 
     def get_file_structure_summary(self, max_files: int = 20, ignore_dirs: List[str] = None, relevant_extensions: List[str] = None) -> str:
         """
