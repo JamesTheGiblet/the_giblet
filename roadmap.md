@@ -420,14 +420,42 @@ python main.py
         * Implemented a new command `giblet learn suggestions` in `ui/cli.py` to instantiate `ProactiveLearner` (using `UserProfilePlaceholder` for now) and display its suggestions. Added basic error handling and output styling.
     * [x] **Task 20.1.5.2: Add "Proactive Suggestions" Section to Dashboard**
         * Created a new "Proactive Suggestions" tab in `ui/dashboard.py` with a button to trigger `ProactiveLearner` (using `UserProfilePlaceholder`) and display its suggestions. Includes spinner and error/info messages.
-    * [ ] **Task 20.1.6: Refine `context_id` Logging for Feedback**
+    * [x] **Task 20.1.6: Refine `context_id` Logging for Feedback** 
         * Ensure that feedback entries consistently log a meaningful `context_id` (e.g., specific prompt template name, agent task identifier) to improve the specificity and accuracy of proactive learning.
-* [ ] **Task 20.2: Build a "Project Contextualizer" Module**
+* [🚧] **Task 20.2: Build a "Project Contextualizer" Module**
     * Create a system to analyze the current project's structure and recent changes to provide more deeply contextual information to LLMs.
-* [ ] **Task 20.3: Introduce "Just-in-Time" Proactive Suggestions in UI/CLI**
+    * [x] **Task 20.2.1: Design `ProjectContextualizer` Class and Core Logic in `core/project_contextualizer.py`**
+        * Defined inputs (`Memory`, `GitAnalyzer`, project root) and outputs (context string).
+        * Outlined methods for file structure analysis, Git history summary, focus retrieval, and context aggregation.
+    * [x] **Task 20.2.2: Implement File Structure Analysis in `ProjectContextualizer`**
+        * Developed `get_file_structure_summary` to list relevant project files/directories, with options for filtering and limiting.
+    * [x] **Task 20.2.3: Implement Git History Analysis in `ProjectContextualizer`**
+        * Implemented `get_recent_changes_summary` using `GitAnalyzer` to fetch recent commit messages.
+    * [x] **Task 20.2.4: Implement Focus Retrieval in `ProjectContextualizer`**
+        * Implemented `get_current_focus_summary` using `Memory` to recall the current session focus.
+    * [x] **Task 20.2.5: Implement Context Aggregation in `ProjectContextualizer`**
+        * Created `get_full_context` to combine all gathered information into a single string. Added an example usage in `if __name__ == '__main__':`.
+    * [x] **Task 20.2.6: Integrate `ProjectContextualizer` into Core LLM Interactions**
+        * Plan and implement how the generated context will be used to augment prompts in `IdeaSynthesizer`, `CodeGenerator`, or the `Agent`'s LLM calls.
+    * [x] **Task 20.2.6.1: Update `IdeaSynthesizer` and `CodeGenerator` to use `ProjectContextualizer`**
+        * Modified `__init__` to accept `ProjectContextualizer`.
+        * Updated prompt generation methods to prepend `project_contextualizer.get_full_context()`.
+    * [x] **Task 20.2.6.2: Update Instantiation Points in CLI, API, and Dashboard** 
+        * Created `ProjectContextualizer` instances in `ui/cli.py`, `api.py`, and `ui/dashboard.py`.
+        * Passed these instances to `IdeaSynthesizer` and `CodeGenerator` during their initialization.
+* [🚧] **Task 20.3: Introduce "Just-in-Time" Proactive Suggestions in UI/CLI**
     * Enable Giblet to offer unsolicited but relevant suggestions or shortcuts based on the project context and user profile.
+    * [x] **Task 20.3.1: Refactor `ProactiveLearner` to use live `UserProfile`**
+        * Modified `core/proactive_learner.py` to accept `core.user_profile.UserProfile` instances, allowing it to access real-time profile data.
+    * [x] **Task 20.3.2: Implement Basic Just-in-Time Suggestion Display in CLI**
+        * Updated `ui/cli.py` to instantiate `ProactiveLearner` with the live `user_profile`.
+        * Added `display_just_in_time_suggestions` function, called periodically in the CLI loop.
+        * Initially, it shows a suggestion from `ProactiveLearner` if available and not the default "no suggestions" message.
+    * [ ] **Task 20.3.3: Enhance Contextuality of CLI Just-in-Time Suggestions**
+        * Refine `display_just_in_time_suggestions` to use `ProjectContextualizer` and `last_command_name` to offer more targeted advice (e.g., "Noticed you're working on X, consider Y command next").
+    * [ ] **Task 20.3.4: Implement Just-in-Time Suggestions in Dashboard (e.g., Toasts)**
+        * Explore using `st.toast` or a dismissible `st.info` box in `ui/dashboard.py` to show contextual suggestions based on user actions or periodic checks.
 
----
 ## Phase 21: 🧠 The Preference & Style Engine (Foundation)
     **Goal:** Build the core systems for learning, storing, and managing your personal development "fingerprint."
     **Tasks:**

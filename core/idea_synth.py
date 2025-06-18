@@ -3,16 +3,21 @@ from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
 from core.llm_provider_base import LLMProvider # Import LLMProvider
 from core.llm_capabilities import LLMCapabilities # New import
+from .project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
 class IdeaSynthesizer:
-    def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
+    def __init__(self, user_profile: UserProfile,
+                 memory_system: Memory,
+                 llm_provider: LLMProvider,
+                 project_contextualizer: ProjectContextualizer): # Added project_contextualizer
         """
-        Initializes the IdeaSynthesizer with a user profile, memory system, and an LLM provider.
+        Initializes the IdeaSynthesizer.
         """
         self.user_profile = user_profile # Store the user_profile instance
         self.memory = memory_system # Store the memory_system instance
         self.llm_provider = llm_provider
         self.capabilities = LLMCapabilities(provider=self.llm_provider, user_profile=self.user_profile)
+        self.project_contextualizer = project_contextualizer # Store ProjectContextualizer
 
         if self.llm_provider and self.llm_provider.is_available():
             print(f"🎨 Idea Synthesizer initialized using {self.llm_provider.PROVIDER_NAME} ({self.llm_provider.model_name}). Max output tokens: {self.capabilities.max_output_tokens}.")
@@ -34,9 +39,12 @@ class IdeaSynthesizer:
 
         print(f"🎨 Synthesizing ideas for '{user_name}' regarding: '{prompt}'...")
 
-        # The rest of the file is unchanged
+        project_context_summary = self.project_contextualizer.get_full_context()
+
         if weird_mode:
             final_prompt = f"""
+            Project Context:
+            {project_context_summary}
             User prompt: "{prompt}"
             This is for a user named {user_name} working on {company_name}.
             They generally prefer a coding style described as: {coding_style_summary}.
@@ -58,6 +66,8 @@ class IdeaSynthesizer:
                 creativity_description = "highly experimental and unconventional"
 
             final_prompt = f"""
+            Project Context:
+            {project_context_summary}
             User prompt: "{prompt}"
             This is for a user named {user_name} working on {company_name}.
             They generally prefer a coding style described as: {coding_style_summary}.
@@ -99,10 +109,16 @@ class IdeaSynthesizer:
             return f"Idea Synthesizer is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
-        # Example of adding user context to a generic text generation prompt
-        contextual_prompt = f"Considering the user is {user_name}:\n\n{prompt}"
+        project_context_summary = self.project_contextualizer.get_full_context()
 
-        print(f"🎨 Generating text for {user_name} based on prompt...")
+        # Example of adding user context to a generic text generation prompt
+        contextual_prompt = f"""
+        Project Context:
+        {project_context_summary}
+        Considering the user is {user_name}:
+
+        {prompt}"""
+        print(f"🎨 Generating text for {user_name} based on prompt (with project context)...")
 
         try:
             response_text = self.llm_provider.generate_text(

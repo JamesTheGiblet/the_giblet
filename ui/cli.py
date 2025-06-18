@@ -26,13 +26,13 @@ from core.pattern_analyzer import PatternAnalyzer # New import
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.capability_assessor import CapabilityAssessor # New import for Gauntlet
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
-# --- Proactive Learner Imports (for new 'learn' command) ---
+from core.project_contextualizer import ProjectContextualizer
+
+# --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
-    # Assuming ProactiveLearner is in the_giblet.core
-    from core.proactive_learner import ProactiveLearner, UserProfilePlaceholder
-    # from core.user_profile import UserProfile # Ideal future import
+    from core.proactive_learner import ProactiveLearner
 except ImportError as e:
-    print(f"Warning: ProactiveLearner module could not be loaded: {e}. 'learn suggestions' command will be unavailable.")
+    print(f"Warning: ProactiveLearner module could not be loaded: {e}. Proactive suggestion features will be limited.")
     # Fallback for ProactiveLearner and UserProfilePlaceholder
     class ProactiveLearner: pass
     class UserProfilePlaceholder: pass
@@ -84,10 +84,19 @@ def start_cli_loop():
         # CLI might be more tolerant or simply print warnings, as it's interactive.
         
     idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
-    code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
     automator = Automator()
     git_analyzer = GitAnalyzer()
     command_manager = CommandManager()
+
+    # Instantiate ProjectContextualizer - assumes CLI runs from project root or similar
+    # The memory instance is already created.
+    project_contextualizer_cli = ProjectContextualizer(memory_system=memory, project_root=".")
+
+    # Update instantiations to include project_contextualizer
+    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
+    code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
+    proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not pass else None
+
     skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager) # Instantiate SkillManager
     agent = Agent(idea_synth=idea_synth, code_generator=code_generator, skill_manager=skill_manager) # Pass skill_manager
     pattern_analyzer = PatternAnalyzer(memory_system=memory) # Instantiate PatternAnalyzer
@@ -641,18 +650,14 @@ def start_cli_loop():
         Analyzes user feedback and profile to provide proactive suggestions.
         """
         # Check if the ProactiveLearner class is the fallback version
-        if ProactiveLearner.__name__ == "ProactiveLearner" and ProactiveLearner.__module__ == __name__: # Checks if it's the fallback
+        if not proactive_learner_instance:
             print("❌ ProactiveLearner module could not be loaded. Suggestions unavailable.")
             return
         
         print("🧠 Attempting to generate proactive suggestions...")
         try:
-            # Note: UserProfilePlaceholder loads "data/user_profile.json" relative to CWD.
-            # Ensure this file exists or is created by UserProfile logic.
-            # Ideally, this would use the main UserProfile from core.user_profile
-            user_profile_instance_for_learner = UserProfilePlaceholder() # Use placeholder for now
-            learner = ProactiveLearner(user_profile_instance_for_learner)
-            suggestions = learner.generate_suggestions()
+            # ProactiveLearner is now instantiated with the live user_profile
+            suggestions = proactive_learner_instance.generate_suggestions()
 
             if suggestions:
                 print("\n--- Proactive Suggestions ---")
@@ -740,6 +745,37 @@ def start_cli_loop():
     register("history", handle_history, "Views command history.")
     # --- Load Plugins ---
     plugin_manager.discover_plugins()
+
+    # --- Just-in-Time Proactive Suggestions Function ---
+    def display_just_in_time_suggestions(last_command_name: str | None):
+        if not proactive_learner_instance or not project_contextualizer_cli:
+            return # Dependencies not available
+
+        jit_suggestions = []
+        # 1. Suggestions from ProactiveLearner (general feedback based)
+        #    We might want to show these less frequently or if highly relevant.
+        #    For now, let's get them but decide later if we show all of them.
+        # learner_suggestions = proactive_learner_instance.generate_suggestions()
+        # if learner_suggestions and "No specific proactive suggestions" not in learner_suggestions[0]:
+        #     jit_suggestions.extend(learner_suggestions[:1]) # Take one for now
+
+        # 2. Suggestions based on ProjectContextualizer and last command
+        project_context = project_contextualizer_cli.get_full_context() # This might be too verbose for JIT
+        
+        # Example: If many files were recently changed and 'git summary' was run
+        # This is a placeholder for more sophisticated logic.
+        # For now, we'll just show a generic ProactiveLearner suggestion if available.
+        # We can refine this to be more contextual.
+        
+        # For demonstration, let's show one suggestion from ProactiveLearner if available
+        # and not the default "no suggestions" message.
+        learner_suggestions = proactive_learner_instance.generate_suggestions()
+        if learner_suggestions and not ("No specific proactive suggestions" in learner_suggestions[0] and len(learner_suggestions) ==1) :
+            jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}")
+
+        if jit_suggestions:
+            print("\n" + "\n".join(jit_suggestions)) # Print before the next prompt
+
     for plugin in plugin_manager.plugins:
         plugin.register_commands(command_manager)
 
@@ -756,6 +792,7 @@ def start_cli_loop():
     
     command_execution_count = 0
     PROACTIVE_ANALYSIS_THRESHOLD = 5 # Analyze patterns every N commands
+    JIT_SUGGESTION_THRESHOLD = 3 # Offer JIT suggestions every N commands
 
     while True:
         try:
@@ -776,15 +813,20 @@ def start_cli_loop():
             else:
                 args = parts[1].split() if len(parts) > 1 else []
             
-            command_manager.execute(command_name, args)
+            # Store command_name before execution for JIT suggestions
+            executed_command_name = command_name 
+            command_manager.execute(executed_command_name, args)
             command_execution_count += 1
 
+            # Proactive skill suggestion based on patterns
             if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
-                # print("\n[Proactive Check] Analyzing command history for patterns...") # Optional: can be noisy
-                # Use a higher min_occurrences for proactive suggestions to reduce noise
                 patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
                 if patterns:
                     _proactively_suggest_skill_creation_from_patterns(patterns)
+            
+            # Just-in-Time general suggestions
+            if command_execution_count % JIT_SUGGESTION_THRESHOLD == 0:
+                display_just_in_time_suggestions(executed_command_name)
 
         except KeyboardInterrupt:
             print("\n🧠 Going to sleep. Goodbye!")

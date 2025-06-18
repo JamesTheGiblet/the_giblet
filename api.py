@@ -1,5 +1,5 @@
 # api.py
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel # <<< NEW IMPORT
 import sys
 from pathlib import Path
@@ -21,6 +21,7 @@ from core.user_profile import UserProfile # New import
 from core.skill_manager import SkillManager # New import
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
+from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
@@ -82,9 +83,13 @@ if not api_llm_provider or not api_llm_provider.is_available():
         if not api_llm_provider.is_available():
             print("⚠️ API: Fallback Gemini provider also not available. LLM features will be severely limited.")
             api_llm_provider = None # Or a NoOpLLMProvider
-            
-idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider)
-code_generator = CodeGenerator(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider)
+
+# Instantiate ProjectContextualizer for the API
+# Assumes API runs from project root or similar. Memory instance is 'memory'.
+project_contextualizer_api = ProjectContextualizer(memory_system=memory, project_root=".")
+
+idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider, project_contextualizer=project_contextualizer_api)
+code_generator = CodeGenerator(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider, project_contextualizer=project_contextualizer_api)
 skill_manager_for_api = SkillManager(user_profile=user_profile_instance, memory=memory, command_manager_instance=command_manager_for_api)
 agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) 
 

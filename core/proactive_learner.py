@@ -1,12 +1,12 @@
 import json
 from typing import List, Dict, Any, Optional
 
-# Assuming UserProfile class is in core.user_profile
-# from .user_profile import UserProfile
+# Import the actual UserProfile class
+from .user_profile import UserProfile
 
 # Placeholder for UserProfile for standalone development/testing.
 # In the actual project, you would import the real UserProfile.
-class UserProfilePlaceholder:
+class UserProfilePlaceholder: # This class can remain for testing or if direct file access is needed elsewhere.
     def __init__(self, profile_path="data/user_profile.json"):
         self.profile_path = profile_path
         self.data = {"preferences": {}, "feedback_log": []}
@@ -27,7 +27,7 @@ class UserProfilePlaceholder:
     def get_feedback_log(self) -> List[Dict[str, Any]]:
         return self.data.get("feedback_log", [])
 
-    def get_preference(self, key: str, default: Any = None) -> Any:
+    def get_preference(self, key: str, default: Any = None) -> Any: # For UserProfilePlaceholder, preferences are flat
         return self.data.get("preferences", {}).get(key, default)
 
 class ProactiveLearner:
@@ -36,7 +36,7 @@ class ProactiveLearner:
     for prompt templates or agent behaviors.
     """
 
-    def __init__(self, user_profile: UserProfilePlaceholder): # Replace UserProfilePlaceholder with actual UserProfile
+    def __init__(self, user_profile: UserProfile): # Changed to actual UserProfile
         """
         Initializes the ProactiveLearner.
 
@@ -73,13 +73,22 @@ class ProactiveLearner:
             summary = analysis_results["feedback_summary_by_context"][context_id]
             summary["count"] += 1
             if rating is not None:
-                summary["ratings"].append(float(rating))
+                # Ensure rating is float before appending
+                try:
+                    summary["ratings"].append(float(rating))
+                except ValueError:
+                    print(f"Warning: Could not convert rating '{rating}' to float for context '{context_id}'. Skipping this rating.")
             if comment:
                 summary["comments"].append(comment.lower())
         
         for context_id, data in analysis_results["feedback_summary_by_context"].items():
             if data["ratings"]:
-                data["avg_rating"] = sum(data["ratings"]) / len(data["ratings"])
+                # Ensure ratings are float for division (already done above, but good to be safe)
+                numeric_ratings = [r for r in data["ratings"] if isinstance(r, (int, float))]
+                if numeric_ratings:
+                    data["avg_rating"] = sum(numeric_ratings) / len(numeric_ratings)
+                else:
+                    data["avg_rating"] = None # Or some default if no valid ratings
             # More sophisticated comment analysis (NLP, keyword extraction) could be added here.
 
         return analysis_results
@@ -92,9 +101,11 @@ class ProactiveLearner:
             A dictionary of relevant preferences.
         """
         preferences = {}
-        preferences["ai_verbosity"] = self.user_profile.get_preference("ai_verbosity")
-        preferences["ai_tone"] = self.user_profile.get_preference("ai_tone")
-        preferences["idea_synth_persona"] = self.user_profile.get_preference("idea_synth_persona")
+        # Accessing preferences correctly from UserProfile, assuming they are in 'llm_settings'
+        # UserProfile.get_preference takes category and key
+        preferences["ai_verbosity"] = self.user_profile.get_preference("llm_settings", "ai_verbosity")
+        preferences["ai_tone"] = self.user_profile.get_preference("llm_settings", "ai_tone")
+        preferences["idea_synth_persona"] = self.user_profile.get_preference("llm_settings", "idea_synth_persona")
         # Add other relevant preferences from UserProfile as they are defined
         return {k: v for k, v in preferences.items() if v is not None}
 

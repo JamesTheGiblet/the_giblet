@@ -4,16 +4,23 @@ from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
 from core.llm_provider_base import LLMProvider # Import LLMProvider
 from core.llm_capabilities import LLMCapabilities # New import
+from .project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
 
 class CodeGenerator:
-    def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
-        """Initializes the CodeGenerator with a user profile, memory system, and an LLM provider."""
+    def __init__(self, user_profile: UserProfile,
+                 memory_system: Memory,
+                 llm_provider: LLMProvider,
+                 project_contextualizer: ProjectContextualizer): # Added project_contextualizer
+        """
+        Initializes the CodeGenerator.
+        """
         self.user_profile = user_profile # Store the user_profile instance
         self.memory = memory_system # Store the memory_system instance
         self.llm_provider = llm_provider
         self.capabilities = LLMCapabilities(provider=self.llm_provider, user_profile=self.user_profile)
         self.logger = logging.getLogger(__name__) # <<< ADDED LOGGER
+        self.project_contextualizer = project_contextualizer # Store ProjectContextualizer
 
         if self.llm_provider and self.llm_provider.is_available():
             print(f"💻 Code Generator initialized using {self.llm_provider.PROVIDER_NAME} ({self.llm_provider.model_name}). Max output tokens: {self.capabilities.max_output_tokens}.")
@@ -29,10 +36,14 @@ class CodeGenerator:
         preferred_quotes = self.user_profile.get_preference("coding_style", "quote_type", "double")
         indent_size = self.user_profile.get_preference("coding_style", "indent_size", "4")
 
-        print(f"💻 Generating function for '{user_name}': '{prompt}'...")
+        print(f"💻 Generating function for '{user_name}': '{prompt}' (with project context)...")
+
+        project_context_summary = self.project_contextualizer.get_full_context()
 
         # A meta-prompt specifically designed to get clean code as a response
         final_prompt = f"""
+        Project Context:
+        {project_context_summary}
         User prompt: "Create a Python function that {prompt}"
         This function is for a user named {user_name}.
 
@@ -84,9 +95,13 @@ class CodeGenerator:
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         ui_style_preference = self.user_profile.get_preference("ui_style", "streamlit_theme", "default")
 
-        print(f"💻 Generating Streamlit UI for '{source_filename}' for {user_name} (theme hint: {ui_style_preference})...")
+        print(f"💻 Generating Streamlit UI for '{source_filename}' for {user_name} (theme hint: {ui_style_preference}, with project context)...")
+
+        project_context_summary = self.project_contextualizer.get_full_context()
 
         final_prompt = f"""
+        Project Context:
+        {project_context_summary}
         You are an expert Streamlit UI generator.
         Your task is to generate a complete, runnable Streamlit script based on the provided Python code containing a data class.
         The user generating this is {user_name}. If they specified a theme preference like '{ui_style_preference}', consider it if applicable to Streamlit's capabilities.
@@ -138,9 +153,13 @@ class CodeGenerator:
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         refactor_aggressiveness = self.user_profile.get_preference("coding_style", "refactor_aggressiveness", "moderate")
 
-        print(f"💻 Refactoring code for {user_name} with instruction: '{instruction}' (aggressiveness: {refactor_aggressiveness})...")
+        print(f"💻 Refactoring code for {user_name} with instruction: '{instruction}' (aggressiveness: {refactor_aggressiveness}, with project context)...")
+
+        project_context_summary = self.project_contextualizer.get_full_context()
 
         final_prompt = f"""
+        Project Context:
+        {project_context_summary}
         You are an expert Python code refactoring assistant.
         Your task is to rewrite the provided source code based on a specific instruction.
         Ensure the new code is clean, efficient, and maintains the original functionality.
@@ -183,9 +202,13 @@ class CodeGenerator:
         if not self.llm_provider or not self.llm_provider.is_available():
             return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
-        print(f"🔬 Generating unit tests for '{source_filename}' using {self.llm_provider.PROVIDER_NAME}...")
+        print(f"🔬 Generating unit tests for '{source_filename}' using {self.llm_provider.PROVIDER_NAME} (with project context)...")
+
+        project_context_summary = self.project_contextualizer.get_full_context()
 
         final_prompt = f"""
+        Project Context:
+        {project_context_summary}
         You are an expert Python test generator who uses the pytest framework.
         Your task is to write a comprehensive set of unit tests for the provided source code. 
         CRITICALLY IMPORTANT: The tests MUST verify the function's behavior based on its name and common programming conventions, NOT based on its current potentially flawed implementation. For example, a function named 'add' MUST be tested as if it performs addition (e.g., add(2,3) should be 5), regardless of what the provided source code currently does. A function named 'subtract' must be tested as if it performs subtraction.
@@ -236,10 +259,16 @@ class CodeGenerator:
         if not self.llm_provider or not self.llm_provider.is_available():
             return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
-        print(f"💻 Generating text from prompt (expecting code) using {self.llm_provider.PROVIDER_NAME}...")
+        print(f"💻 Generating text from prompt (expecting code) using {self.llm_provider.PROVIDER_NAME} (with project context)...")
+        project_context_summary = self.project_contextualizer.get_full_context()
+
+        final_prompt_with_context = f"""
+        Project Context:
+        {project_context_summary}
+        {prompt}"""
         try:
             response_text = self.llm_provider.generate_text(
-                prompt,
+                final_prompt_with_context,
                 max_tokens=self.capabilities.max_output_tokens
             )
             # Clean up the response to extract only the code block

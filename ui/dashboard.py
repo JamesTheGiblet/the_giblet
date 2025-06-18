@@ -21,6 +21,7 @@ from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.code_generator import CodeGenerator # For CapabilityAssessor
 from core.capability_assessor import CapabilityAssessor # For the new UI feature
+from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 
 # --- Proactive Learner Imports (from snippet) ---
 try:
@@ -137,6 +138,10 @@ def main():
     if not dashboard_llm_provider or not dashboard_llm_provider.is_available():
         st.sidebar.warning(f"Configured LLM provider ({dashboard_llm_provider.PROVIDER_NAME if dashboard_llm_provider else 'N/A'}) is not available. Dashboard LLM features may be limited.")
 
+    # Instantiate ProjectContextualizer for the Dashboard
+    # Assumes dashboard runs from project root. Memory instance is 'memory_instance'.
+    project_contextualizer_dashboard = ProjectContextualizer(memory_system=memory_instance, project_root=".")
+
     # --- Sidebar ---
     with st.sidebar:
         st.header("🚀 Quick Actions")
@@ -239,7 +244,11 @@ def main():
         # The Generator tab requires its own instances
         try:
             # Pass the dashboard's user_profile, memory, and llm_provider instances
-            idea_synth = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory_instance, llm_provider=dashboard_llm_provider)
+            # Also pass the project_contextualizer_dashboard
+            idea_synth = IdeaSynthesizer(user_profile=user_profile_instance,
+                                         memory_system=memory_instance,
+                                         llm_provider=dashboard_llm_provider,
+                                         project_contextualizer=project_contextualizer_dashboard)
             st.header("Code Generator")
             st.write("Generate high-quality, documented Python code from a simple prompt.")
 
@@ -663,10 +672,16 @@ def main():
             else:
                 with st.spinner(f"Running Capability Gauntlet on {dashboard_llm_provider.PROVIDER_NAME} ({dashboard_llm_provider.model_name})... This may take some time."):
                     try:
-                        # Instantiate necessary components for the assessor
-                        # These use the dashboard's configured LLM provider
-                        cg_for_assessment = CodeGenerator(user_profile=user_profile_instance, memory_system=memory_instance, llm_provider=dashboard_llm_provider)
-                        is_for_assessment = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory_instance, llm_provider=dashboard_llm_provider)
+                        # Instantiate necessary components for the assessor, including ProjectContextualizer
+                        cg_for_assessment = CodeGenerator(user_profile=user_profile_instance,
+                                                          memory_system=memory_instance,
+                                                          llm_provider=dashboard_llm_provider,
+                                                          project_contextualizer=project_contextualizer_dashboard)
+                        
+                        is_for_assessment = IdeaSynthesizer(user_profile=user_profile_instance,
+                                                            memory_system=memory_instance,
+                                                            llm_provider=dashboard_llm_provider,
+                                                            project_contextualizer=project_contextualizer_dashboard)
                         
                         assessor = CapabilityAssessor(llm_provider=dashboard_llm_provider, code_generator=cg_for_assessment, idea_synthesizer=is_for_assessment)
                         st.session_state.gauntlet_results = assessor.run_gauntlet()
