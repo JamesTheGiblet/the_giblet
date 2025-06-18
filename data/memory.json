@@ -1,11 +1,31 @@
 {
-  "roadmap": [],
-  "bug_archive": [],
-  "preferences": {},
-  "project_creator": "\"James\"",
   "user_profile_data_v1": {
     "general": {
-      "james": "vibe coding"
+      "user_name": "",
+      "company_name": ""
+    },
+    "coding_style": {
+      "preferred_quote_type": "double",
+      "indent_size": "4",
+      "summary": "standard conventions"
+    },
+    "llm_settings": {
+      "idea_synth_persona": "creative and helpful",
+      "code_gen_persona": "expert Python programmer",
+      "idea_synth_creativity": 3
+    },
+    "llm_provider_config": {
+      "active_provider": "gemini",
+      "providers": {
+        "gemini": {
+          "api_key": "",
+          "model_name": "gemini-1.5-flash-latest"
+        },
+        "ollama": {
+          "base_url": "http://localhost:11434",
+          "model_name": "mistral"
+        }
+      }
     }
   }
 }

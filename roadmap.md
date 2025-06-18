@@ -356,7 +356,7 @@ python main.py
 
 ---
 ## Phase 19: 🔑 The Universal LLM Connector
-* [🚧] **Task 19.1: Abstract LLM Provider Interactions**
+* [x] **Task 19.1: Abstract LLM Provider Interactions**
     * Develop a common interface/wrapper to allow seamless switching between different LLM providers (Gemini, Ollama, etc.).
     * [x] **Task 19.1.1: Define `LLMProvider` Base Class**
         * Created `core/llm_provider_base.py` with an abstract `generate_text` method.
@@ -364,8 +364,16 @@ python main.py
         * Created concrete provider classes for Gemini and Ollama.
     * [x] **Task 19.1.3: Refactor Core Modules to Use `LLMProvider`**
         * Updated `IdeaSynthesizer` and `CodeGenerator` to accept and use an `LLMProvider` instance.
-* [ ] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
+* [🚧] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
     * Enhance API key management and allow users to select the active LLM provider/model via CLI and Dashboard, storing this in `UserProfile`.
+    * [x] **Task 19.2.1: Update `UserProfile` for LLM Provider Configuration**
+        * Added `llm_provider_config` to `UserProfile` to store active provider and specific settings (API keys, models, URLs).
+    * [x] **Task 19.2.2: Refactor LLM Instantiation in API, CLI, and Dashboard**
+        * Modified core components to dynamically load LLM providers based on `UserProfile` settings.
+    * [x] **Task 19.2.3: Add CLI Commands for LLM Configuration**
+        * Implemented `llm status|use|config` commands in the CLI.
+    * [x] **Task 19.2.4: Add Dashboard UI for LLM Configuration**
+        * Added UI elements in the Dashboard's "Profile" tab to manage LLM provider selection and settings.
 * [ ] **Task 19.3: Add "Auto-Recognition" of Model Capabilities (Stretch Goal)**
     * Investigate methods for Giblet to infer capabilities of the selected LLM and adapt its strategies accordingly.
 

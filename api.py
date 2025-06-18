@@ -4,19 +4,22 @@ from pydantic import BaseModel # <<< NEW IMPORT
 import sys
 from pathlib import Path
 import shlex # Add shlex if not already imported at the top of api.py
-
+import json # Add this
+from typing import Any # Import Any
 
 sys.path.append(str(Path(__file__).parent))
 
 # --- Import Core Modules ---
+from core import user_profile
 from core.idea_synth import IdeaSynthesizer
 from core.roadmap_manager import RoadmapManager
 from core.memory import Memory
 from core.code_generator import CodeGenerator # <<< NEW IMPORT
 from core.automator import Automator # <<< NEW IMPORT
-from core import agent, command_manager, utils # <<< NEW IMPORT
+from core import agent, command_manager, utils, user_profile as core_user_profile # <<< NEW IMPORT, aliased user_profile
 from core.user_profile import UserProfile # New import
 from core.skill_manager import SkillManager # New import
+from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 
 # --- Initialize FastAPI and Core Modules ---
@@ -27,23 +30,63 @@ app = FastAPI(
 )
 memory = Memory()
 roadmap_manager = RoadmapManager(memory_system=memory)
-user_profile = UserProfile(memory_system=memory) # Instantiate UserProfile
+user_profile_instance = UserProfile(memory_system=memory) # Instantiate UserProfile, renamed to avoid conflict
 # Instantiate CommandManager for the API, passing the memory system
 command_manager_for_api = command_manager.CommandManager(memory_system=memory)
 # command_manager is initialized here but has no commands registered by default.
 # For the /agent/execute endpoint to work, this command_manager needs relevant commands.
 automator = Automator() # <<< NEW INSTANCE
 
-# Default LLM Provider for API - this will be made configurable later
-api_llm_provider = GeminiProvider() # Assumes GEMINI_API_KEY is set
-if not api_llm_provider.is_available():
-    print("⚠️ Defaulting API LLM provider to Ollama as Gemini is not available/configured.")
-    api_llm_provider = OllamaProvider() # Assumes Ollama is running locally on default port
+# Helper function to get the configured LLM provider
+def get_configured_llm_provider(profile: UserProfile) -> LLMProvider | None:
+    active_provider_name = profile.get_preference("llm_provider_config", "active_provider", "gemini")
+    raw_provider_configs = profile.get_preference("llm_provider_config", "providers")
 
-idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=api_llm_provider)
-code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=api_llm_provider)
-skill_manager_for_api = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager_for_api) 
-agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api)
+    provider_configs = {}
+    if isinstance(raw_provider_configs, dict):
+        provider_configs = raw_provider_configs
+    elif isinstance(raw_provider_configs, str) and raw_provider_configs.startswith("{") and raw_provider_configs.endswith("}"): # Basic check for JSON string
+        try:
+            provider_configs = json.loads(raw_provider_configs) # Attempt to parse if it's a stringified JSON
+        except json.JSONDecodeError:
+            print(f"⚠️ API: Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}")
+            provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
+    else: # Not a dict, not a parsable string, or None
+        print(f"⚠️ API: 'providers' config in profile is not a valid dictionary. Using defaults. Value was: {raw_provider_configs}")
+        provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"] # Fallback to default structure
+
+    if active_provider_name == "gemini":
+        gemini_config = provider_configs.get("gemini", {})
+        api_key = gemini_config.get("api_key") # GeminiProvider will use .env if this is empty/None
+        model_name = gemini_config.get("model_name", "gemini-1.5-flash-latest")
+        print(f"API: Configuring GeminiProvider (model: {model_name}, API key from profile: {'yes' if api_key else 'no/use .env'})")
+        return GeminiProvider(model_name=model_name, api_key=api_key if api_key else None)
+    elif active_provider_name == "ollama":
+        ollama_config = provider_configs.get("ollama", {})
+        base_url = ollama_config.get("base_url", "http://localhost:11434")
+        model_name = ollama_config.get("model_name", "mistral")
+        print(f"API: Configuring OllamaProvider (model: {model_name}, url: {base_url})")
+        return OllamaProvider(model_name=model_name, base_url=base_url)
+    else:
+        print(f"⚠️ API: Unknown LLM provider '{active_provider_name}' configured in profile. Defaulting to Gemini.")
+        return GeminiProvider() # Fallback
+
+api_llm_provider = get_configured_llm_provider(user_profile_instance)
+
+if not api_llm_provider or not api_llm_provider.is_available():
+    print(f"⚠️ API: Configured LLM provider ({api_llm_provider.PROVIDER_NAME if api_llm_provider else 'N/A'}) is not available. Operations requiring LLM will be affected.")
+    # Fallback to a default if primary is not available, or let it be None and handle in consuming classes
+    if not (api_llm_provider and api_llm_provider.is_available()): # Double check if primary failed
+        print("⚠️ API: Attempting fallback to Gemini (default) due to primary provider unavailability.")
+        api_llm_provider = GeminiProvider() # Default fallback
+        if not api_llm_provider.is_available():
+            print("⚠️ API: Fallback Gemini provider also not available. LLM features will be severely limited.")
+            api_llm_provider = None # Or a NoOpLLMProvider
+            
+idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider)
+code_generator = CodeGenerator(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider)
+skill_manager_for_api = SkillManager(user_profile=user_profile_instance, memory=memory, command_manager_instance=command_manager_for_api)
+agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) 
 
 # --- Define Request/Response Models ---
 class GenerationRequest(BaseModel):
@@ -85,7 +128,7 @@ class AgentExecuteResponse(BaseModel):
 class ProfileSetRequest(BaseModel):
     category: str
     key: str
-    value: str # Keep it simple as string from UI
+    value: Any # Allow any type, including dict for providers
 
 class ProfileResponse(BaseModel):
     profile: dict | None = None
@@ -196,14 +239,14 @@ def generate_stubs_endpoint(request: StubRequest):
 @app.get("/profile", response_model=ProfileResponse)
 def get_user_profile_endpoint():
     """Retrieves the entire user profile."""
-    data = user_profile.get_all_data()
+    data = user_profile_instance.get_all_data()
     return ProfileResponse(profile=data)
 
 @app.post("/profile/set", response_model=ProfileResponse)
 def set_user_profile_endpoint(request: ProfileSetRequest):
     """Sets a specific preference in the user profile."""
-    user_profile.add_preference(request.category, request.key, request.value)
-    return ProfileResponse(message=f"Preference '{request.category}.{request.key}' set.")
+    user_profile_instance.add_preference(request.category, request.key, request.value)
+    return ProfileResponse(message=f"Preference '{request.category}.{request.key}' set to '{request.value}'.")
 
 @app.post("/profile/clear", response_model=ProfileResponse)
 def clear_user_profile_endpoint():
@@ -229,7 +272,7 @@ def submit_feedback_endpoint(request: FeedbackRequest):
     if not last_interaction:
         return ProfileResponse(message="Could not submit feedback: No last AI interaction found.")
 
-    user_profile.add_feedback(request.rating, request.comment, context=last_interaction)
+    user_profile_instance.add_feedback(request.rating, request.comment, context=last_interaction)
     memory.remember('last_ai_interaction', None) # Clear after feedback is given
     return ProfileResponse(message=f"Feedback ('{request.rating}') submitted successfully.")
 

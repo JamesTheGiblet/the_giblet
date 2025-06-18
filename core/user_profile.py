@@ -14,10 +14,23 @@ DEFAULT_PROFILE_STRUCTURE = {
         "indent_size": "4",
         "summary": "standard conventions" # A brief description
     },
-    "llm_settings": {
+    "llm_settings": { # Existing general LLM settings
         "idea_synth_persona": "creative and helpful", # Default persona
         "code_gen_persona": "expert Python programmer",
         "idea_synth_creativity": 3 # A scale, e.g., 1 (very practical) to 5 (very experimental)
+    },
+    "llm_provider_config": { # New section for provider selection and specific configs
+        "active_provider": "gemini", # 'gemini' or 'ollama'
+        "providers": {
+            "gemini": {
+                "api_key": "", # User can set this via UI/CLI, or it's read from .env by GeminiProvider
+                "model_name": "gemini-1.5-flash-latest"
+            },
+            "ollama": {
+                "base_url": "http://localhost:11434",
+                "model_name": "mistral"
+            }
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 # ui/cli.py
+import json
 import logging
 import subprocess
 import sys
@@ -19,9 +20,10 @@ from core.command_manager import CommandManager
 from core.plugin_manager import PluginManager
 from core.watcher import start_watching # 1. Add the new import at the top
 from core.agent import Agent # 1. Add the new import
-from core.user_profile import UserProfile # New import for UserProfile
+from core.user_profile import DEFAULT_PROFILE_STRUCTURE, UserProfile # New import for UserProfile
 from core.skill_manager import SKILLS_DIR, SkillManager # New import for SkillManager
 from core.pattern_analyzer import PatternAnalyzer # New import
+from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 
 def start_cli_loop():
@@ -30,13 +32,46 @@ def start_cli_loop():
     memory = Memory() # Memory first
     user_profile = UserProfile(memory_system=memory) # UserProfile needs memory
 
-    # Default LLM Provider for CLI - this will be made configurable later
-    # For now, let's assume Gemini is the default if available, else Ollama.
-    cli_llm_provider = GeminiProvider() # Assumes GEMINI_API_KEY is set
-    if not cli_llm_provider.is_available():
-        print("⚠️ Defaulting CLI LLM provider to Ollama as Gemini is not available/configured.")
-        cli_llm_provider = OllamaProvider() # Assumes Ollama is running locally on default port
+    # Helper function to get the configured LLM provider for CLI
+    def get_cli_llm_provider(profile: UserProfile) -> LLMProvider | None:
+        active_provider_name = profile.get_preference("llm_provider_config", "active_provider", "gemini")
+        raw_provider_configs = profile.get_preference("llm_provider_config", "providers")
 
+        provider_configs = {}
+        if isinstance(raw_provider_configs, dict):
+            provider_configs = raw_provider_configs
+        elif isinstance(raw_provider_configs, str) and raw_provider_configs.startswith("{") and raw_provider_configs.endswith("}"): # Basic check for JSON string
+            try:
+                provider_configs = json.loads(raw_provider_configs) # Attempt to parse if it's a stringified JSON
+            except json.JSONDecodeError:
+                print(f"⚠️ CLI: Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}")
+                provider_configs = DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
+        else: # Not a dict, not a parsable string, or None
+            print(f"⚠️ CLI: 'providers' config in profile is not a valid dictionary. Using defaults. Value was: {raw_provider_configs}")
+            provider_configs = DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"] # Fallback to default structure
+
+        if active_provider_name == "gemini":
+            gemini_config = provider_configs.get("gemini", {})
+            api_key = gemini_config.get("api_key")
+            model_name = gemini_config.get("model_name", "gemini-1.5-flash-latest")
+            print(f"CLI: Configuring GeminiProvider (model: {model_name}, API key from profile: {'yes' if api_key else 'no/use .env'})")
+            return GeminiProvider(model_name=model_name, api_key=api_key if api_key else None)
+        elif active_provider_name == "ollama":
+            ollama_config = provider_configs.get("ollama", {})
+            base_url = ollama_config.get("base_url", "http://localhost:11434")
+            model_name = ollama_config.get("model_name", "mistral")
+            print(f"CLI: Configuring OllamaProvider (model: {model_name}, url: {base_url})")
+            return OllamaProvider(model_name=model_name, base_url=base_url)
+        else:
+            print(f"⚠️ CLI: Unknown LLM provider '{active_provider_name}' configured. Defaulting to Gemini.")
+            return GeminiProvider()
+
+    cli_llm_provider = get_cli_llm_provider(user_profile)
+
+    if not cli_llm_provider or not cli_llm_provider.is_available():
+        print(f"⚠️ CLI: Configured LLM provider ({cli_llm_provider.PROVIDER_NAME if cli_llm_provider else 'N/A'}) is not available. LLM features may be limited.")
+        # CLI might be more tolerant or simply print warnings, as it's interactive.
+        
     idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
     automator = Automator()
@@ -65,6 +100,10 @@ def start_cli_loop():
         print("  profile get [<cat> [<key>]] - Gets a profile value or the whole profile.")
         print("  profile set <cat> <key> <val> - Sets a profile value.")
         print("  profile clear              - Clears the entire user profile.")
+        print("\nLLM Configuration Commands:")
+        print("  llm status                 - Shows current LLM provider and model.")
+        print("  llm use <gemini|ollama>    - Sets the active LLM provider.")
+        print("  llm config <provider> <key> <value> - Configure provider-specific settings (e.g., model_name, api_key, base_url).")
         print("  feedback <rating> [comment] - Provide feedback on the last AI output (rating: good, bad, ok).")
         print("\nSkill Commands:")
         print("  skills list                - Lists available skills.")
@@ -414,6 +453,57 @@ def start_cli_loop():
         else:
             print(f"Unknown profile action: {action}. Use 'get', 'set', or 'clear'.")
     register("profile", handle_profile, "Manages user profile settings.")
+
+    # LLM Configuration Commands
+    def handle_llm_config(args):
+        if not args:
+            print("Usage: llm <status|use|config> [options...]")
+            print("Example: llm use ollama")
+            print("Example: llm config gemini model_name gemini-pro")
+            print("Example: llm config ollama base_url http://localhost:11435")
+            return
+
+        action = args[0].lower()
+        if action == "status":
+            active_provider_from_profile = user_profile.get_preference("llm_provider_config", "active_provider")
+            
+            # Determine effective active provider (considering default fallback)
+            effective_active_provider = active_provider_from_profile or "gemini" # Default to gemini if not set
+            
+            print(f"Effective Active LLM Provider: {effective_active_provider}")
+            if not active_provider_from_profile:
+                print("  (Note: No active provider explicitly set in profile, defaulting to Gemini)")
+
+            provider_configs = user_profile.get_preference("llm_provider_config", "providers", {})
+            
+            for provider_name_key in ["gemini", "ollama"]: # Iterate through known providers
+                print(f"\nSettings for {provider_name_key.capitalize()}:")
+                config = provider_configs.get(provider_name_key, DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"].get(provider_name_key, {})) # Get from profile or default structure
+                for key, value in config.items():
+                    val_display = "*******" if "api_key" in key and value else value # Mask API key
+                    print(f"  - {key}: {val_display}")
+        elif action == "use": # Logic for 'llm use'
+            if len(args) < 2 or args[1].lower() not in ["gemini", "ollama"]:
+                print("Usage: llm use <gemini|ollama>")
+                return
+            provider_name = args[1].lower()
+            user_profile.add_preference("llm_provider_config", "active_provider", provider_name)
+            print(f"Active LLM provider set to: {provider_name}. Restart Giblet for changes to take full effect in current session.")
+        elif action == "config":
+            if len(args) < 4:
+                print("Usage: llm config <provider_name> <setting_key> <setting_value>")
+                print("Valid providers: gemini, ollama")
+                print("Valid keys for gemini: api_key, model_name")
+                print("Valid keys for ollama: base_url, model_name")
+                return
+            provider_name = args[1].lower()
+            key = args[2]
+            value = " ".join(args[3:])
+            user_profile.add_preference(("llm_provider_config", "providers", provider_name), key, value) # Nested preference setting
+            print(f"Set {key} = {value} for {provider_name}. Restart Giblet for changes to take full effect.")
+        else:
+            print(f"Unknown llm command: {action}. Use 'status', 'use', or 'config'.")
+    register("llm", handle_llm_config, "Manages LLM provider configurations.")
 
     # Feedback Command
     def handle_feedback(args):
