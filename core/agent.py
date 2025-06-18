@@ -11,10 +11,14 @@ class Agent:
         self.idea_synth = idea_synth # <<< CHANGED
         self.code_generator = code_generator # <<< NEW
         self.skill_manager = skill_manager # <<< Store SkillManager
-        if self.idea_synth.model and self.code_generator.model:
+        
+        # Check if the LLM providers for both idea_synth and code_generator are available
+        idea_synth_ready = self.idea_synth.llm_provider and self.idea_synth.llm_provider.is_available()
+        code_generator_ready = self.code_generator.llm_provider and self.code_generator.llm_provider.is_available()
+        if idea_synth_ready and code_generator_ready:
             print("🤖 Autonomous Agent initialized with LLM connections.")
         else:
-             print("🤖 Autonomous Agent could not initialize (missing LLM connection).")
+             print(f"🤖 Autonomous Agent initialized. Idea Synth Ready: {idea_synth_ready}, Code Generator Ready: {code_generator_ready}. Some functionalities might be limited.")
         
         # Load skill creation guide content
         self.skill_creation_guide_content = ""
@@ -28,8 +32,8 @@ class Agent:
         """
         Takes a high-level goal and breaks it down into a list of Giblet commands.
         """
-        if not self.idea_synth.model:
-            return ["# Agent is not available."]
+        if not self.idea_synth.llm_provider or not self.idea_synth.llm_provider.is_available():
+            return ["# Agent's IdeaSynthesizer is not available (LLM provider issue)."]
 
         print(f"🤖 Decomposing goal into a multi-step plan: '{high_level_goal}'...")
 
@@ -83,8 +87,8 @@ class Agent:
         """
         Takes source code and a test error, and asks the LLM for a fix.
         """
-        if not self.code_generator.model: # Check code_generator's model
-            return f"# Agent's CodeGenerator is not available."
+        if not self.code_generator.llm_provider or not self.code_generator.llm_provider.is_available():
+            return f"# Agent's CodeGenerator is not available (LLM provider issue)."
 
         print("🤖 Test failure detected. Attempting self-correction...")
 
@@ -112,8 +116,8 @@ class Agent:
         """
         Uses the LLM to generate Python code for a new skill based on a list of plan steps.
         """
-        if not self.code_generator.model:
-            return "# CodeGenerator model not available. Cannot generate skill."
+        if not self.code_generator.llm_provider or not self.code_generator.llm_provider.is_available():
+            return "# CodeGenerator's LLM provider not available. Cannot generate skill."
 
         print(f"🤖 Generating skill code for '{new_skill_name}' based on recent plan...")
 

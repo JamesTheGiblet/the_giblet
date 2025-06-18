@@ -17,6 +17,7 @@ from core.automator import Automator # <<< NEW IMPORT
 from core import agent, command_manager, utils # <<< NEW IMPORT
 from core.user_profile import UserProfile # New import
 from core.skill_manager import SkillManager # New import
+from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
@@ -32,10 +33,17 @@ command_manager_for_api = command_manager.CommandManager(memory_system=memory)
 # command_manager is initialized here but has no commands registered by default.
 # For the /agent/execute endpoint to work, this command_manager needs relevant commands.
 automator = Automator() # <<< NEW INSTANCE
-idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile, memory_system=memory) # Pass memory
-code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass memory
+
+# Default LLM Provider for API - this will be made configurable later
+api_llm_provider = GeminiProvider() # Assumes GEMINI_API_KEY is set
+if not api_llm_provider.is_available():
+    print("⚠️ Defaulting API LLM provider to Ollama as Gemini is not available/configured.")
+    api_llm_provider = OllamaProvider() # Assumes Ollama is running locally on default port
+
+idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=api_llm_provider)
+code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=api_llm_provider)
 skill_manager_for_api = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager_for_api) 
-agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) # Pass skill_manager
+agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api)
 
 # --- Define Request/Response Models ---
 class GenerationRequest(BaseModel):

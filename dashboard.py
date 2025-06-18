@@ -4,6 +4,7 @@ import httpx
 import sys
 import difflib # <<< NEW IMPORT at the top
 from pathlib import Path
+import shlex # For parsing plan steps
 
 # This line ensures that the script can find your 'core' modules
 sys.path.append(str(Path(__file__).parent))
@@ -12,7 +13,7 @@ from core.roadmap_manager import RoadmapManager
 from core.git_analyzer import GitAnalyzer
 from core.idea_synth import IdeaSynthesizer
 from core.memory import Memory
-from core.user_profile import UserProfile # Import UserProfile
+from core.user_profile import UserProfile # Ensure UserProfile is imported
 
 # Function to sanitize strings for display, especially on Windows with 'charmap' issues
 def sanitize_for_display(text: str) -> str:
@@ -47,52 +48,8 @@ def main():
 
     st.title("🧠 The Giblet: Project Cockpit")
 
-    # --- Sidebar for Quick Actions & Focus ---
-    with st.sidebar:
-        st.header("🚀 Quick Actions")
-
-        # Display and Manage Focus
-        st.subheader("🎯 Current Focus")
-        
-        # Function to fetch current focus
-        def fetch_current_focus():
-            try:
-                response = httpx.get("http://localhost:8000/memory/focus", timeout=5)
-                response.raise_for_status()
-                data = response.json()
-                st.session_state.dashboard_current_focus = data.get("current_focus")
-            except Exception as e:
-                # Don't show error here, might be too noisy if API is temporarily down
-                st.session_state.dashboard_current_focus = None 
-
-        if 'dashboard_current_focus' not in st.session_state:
-            fetch_current_focus() # Initial fetch
-
-        if st.session_state.get('dashboard_current_focus'):
-            st.info(f"{st.session_state.dashboard_current_focus}")
-        else:
-            st.caption("No focus set. Use the field below or the CLI.")
-
-        new_focus_text = st.text_input("Set new focus:", key="sidebar_focus_input", placeholder="e.g., 'Refactoring the auth module'")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Set Focus", key="sidebar_set_focus_btn", use_container_width=True):
-                if new_focus_text.strip():
-                    httpx.post("http://localhost:8000/memory/focus", json={"focus_text": new_focus_text}, timeout=5)
-                    fetch_current_focus() # Refresh
-                    st.experimental_rerun() # Rerun to update display immediately
-        with col2:
-            if st.button("Clear Focus", key="sidebar_clear_focus_btn", use_container_width=True):
-                httpx.post("http://localhost:8000/memory/focus", json={"focus_text": None}, timeout=5) # Send None or empty to clear
-                fetch_current_focus() # Refresh
-                st.experimental_rerun() # Rerun to update display immediately
-        
-        st.divider()
-        # Add more quick action buttons here later, e.g., for Generate Ideas, Generate Plan
-
     # <<< UPDATED: Add a new tab for the refactor tool
-    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile"]) # New Profile tab
+    tabs = st.tabs(["🗺️ Roadmap", "📜 History", "🛠️ Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation"]) # Agent tab removed
 
     with tabs[0]:
         st.header("Project Roadmap")
@@ -244,8 +201,28 @@ def main():
         
         if st.session_state.agent_plan:
             st.subheader("Generated Plan:")
-            for i, step in enumerate(st.session_state.agent_plan, 1):
-                st.markdown(f"`Step {i}: giblet {step}`")
+            
+            # Define some icons for common commands
+            command_icons = {
+                "write": "📝",
+                "generate": "💡",
+                "exec": "⚙️",
+                "skill": "🧠",
+                "refactor": "✨",
+                "plan": "🗺️",
+                "default": "▶️"
+            }
+
+            for i, step_string in enumerate(st.session_state.agent_plan, 1):
+                parts = shlex.split(step_string)
+                command_name = parts[0] if parts else "Unknown"
+                args_display = " ".join(parts[1:]) if len(parts) > 1 else ""
+                icon = command_icons.get(command_name, command_icons["default"])
+
+                col1, col2, col3 = st.columns([0.05, 0.3, 0.65])
+                with col1: st.markdown(f"**{i}.**")
+                with col2: st.markdown(f"{icon} `{command_name}`")
+                with col3: st.code(args_display, language=None) # Use st.code for better display of args
             
             st.warning("Review the plan carefully before execution. Execution will run commands on your system. Check API server console for detailed logs.")
             if st.button("Execute Plan", type="primary", key="agent_execute_plan_btn_in_generator"):
@@ -407,188 +384,6 @@ def main():
                         st.error(f"API Request Failed. Is the Giblet API server running? Details: {sanitize_for_display(str(e_api))}")
                     except Exception as e_stub:
                         st.error(f"Error generating stubs for {stub_filepath}: {sanitize_for_display(str(e_stub))}")
-    
-    with tabs[6]: # Corresponds to "👤 Profile"
-        st.header("User Profile Management")
-
-        # Function to fetch profile data
-        def fetch_profile():
-            try:
-                response = httpx.get("http://localhost:8000/profile", timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                st.session_state.user_profile_data = data.get("profile", {})
-            except Exception as e:
-                st.error(f"Failed to fetch profile: {sanitize_for_display(str(e))}")
-                st.session_state.user_profile_data = {}
-
-        # Initialize or refresh profile data
-        if 'user_profile_data' not in st.session_state or st.button("Refresh Profile Data", key="refresh_profile_btn"):
-            fetch_profile()
-
-        st.subheader("Current Profile Settings")
-        profile_data_to_display = st.session_state.get('user_profile_data')
-
-        if profile_data_to_display is not None: # Check if it's initialized
-            if not profile_data_to_display: # It's an empty dictionary
-                st.info("User profile is currently empty. Use the 'Set a Preference' form below to add your settings.")
-            else: # It has data
-                for category, settings in profile_data_to_display.items():
-                    if isinstance(settings, dict) and settings: # Check if settings is a non-empty dictionary
-                        st.markdown(f"##### {category.replace('_', ' ').title()}")
-                        for key, value in settings.items():
-                            st.markdown(f"- **{key.replace('_', ' ').title()}:** `{value}`")
-                        st.write("---") # Add a small divider between categories
-                    elif settings: # If it's not a dict but has a value (less likely with current structure but good to handle)
-                        st.markdown(f"- **{category.replace('_', ' ').title()}:** `{settings}`")
-
-        st.divider()
-        st.subheader("Set a Preference")
-        with st.form("set_preference_form", clear_on_submit=True):
-            # Predefined categories based on your DEFAULT_PROFILE_STRUCTURE
-            # You might want to fetch these dynamically or define them more centrally
-            # For now, let's hardcode based on your current default structure
-            default_categories = ["general", "coding_style", "project_settings", "llm_settings", "ui_style"] # Added a few more common ones
-            
-            st.write("Select a category or type a new one:")
-            pref_category_select = st.selectbox("Common Categories", options=default_categories, index=0, key="pref_cat_select", help="Choose a common category or type a custom one below.")
-            pref_category_custom = st.text_input("Or Enter Custom Category", key="pref_cat_custom", help="If your category isn't listed, enter it here. This will override the selection above.")
-
-            # Determine the category to use
-            pref_category = pref_category_custom if pref_category_custom else pref_category_select
-            
-            pref_key = st.text_input(f"Preference Key for '{pref_category}' (e.g., 'user_name', 'indent_size')", key="pref_key", help="The specific name of the preference. For 'general', try 'user_name' or 'company_name'. For 'coding_style', try 'preferred_quote_type' or 'indent_size'.")
-            pref_value = st.text_input("Preference Value", key="pref_val", help="The actual setting for this preference (e.g., 'James', 'Acme Corp', 'single', '2').")
-            submitted_pref = st.form_submit_button("Set Preference")
-
-            if submitted_pref:
-                # Debug print
-                st.write(f"DEBUG: Category='{pref_category}', Key='{pref_key}', Value='{pref_value}'")
-                if pref_category and pref_key: # Value can be empty string
-                    try:
-                        payload = {"category": pref_category, "key": pref_key, "value": pref_value}
-                        response = httpx.post("http://localhost:8000/profile/set", json=payload, timeout=10)
-                        response.raise_for_status()
-                        st.success(response.json().get("message", "Preference set!"))
-                        fetch_profile() # Refresh data after setting
-                    except Exception as e:
-                        st.error(f"Failed to set preference: {sanitize_for_display(str(e))}")
-                else:
-                    st.warning("Category and Key are required to set a preference.")
-        
-        st.divider()
-        st.subheader("AI Vibe & Behavior Settings")
-
-        # Helper to update profile via API and refresh
-        def update_profile_setting(category, key, value):
-            try:
-                payload = {"category": category, "key": key, "value": str(value)} # Ensure value is string for API
-                response = httpx.post("http://localhost:8000/profile/set", json=payload, timeout=10)
-                response.raise_for_status()
-                # st.toast(f"{category}.{key} updated to {value}!", icon="🎉") # Subtle notification
-                fetch_profile() # Refresh profile data in session state
-                return True
-            except Exception as e:
-                st.error(f"Failed to update {category}.{key}: {sanitize_for_display(str(e))}")
-                return False
-
-        # IdeaSynthesizer Settings
-        st.markdown("##### Idea Synthesizer")
-        idea_personas = ["creative and helpful", "analytical and detailed", "concise and direct", "slightly sarcastic but brilliant", "formal academic researcher", "Custom"]
-        current_idea_persona = st.session_state.user_profile_data.get("llm_settings", {}).get("idea_synth_persona", idea_personas[0])
-        
-        selected_idea_persona = st.selectbox(
-            "Persona", options=idea_personas, 
-            index=idea_personas.index(current_idea_persona) if current_idea_persona in idea_personas else idea_personas.index("Custom"), 
-            key="idea_persona_select"
-        )
-        custom_idea_persona = current_idea_persona
-        if selected_idea_persona == "Custom":
-            custom_idea_persona = st.text_input("Enter Custom Idea Persona:", value=current_idea_persona if current_idea_persona not in idea_personas[:-1] else "", key="custom_idea_persona_input")
-        
-        final_idea_persona = custom_idea_persona if selected_idea_persona == "Custom" else selected_idea_persona
-        if final_idea_persona != current_idea_persona:
-            if update_profile_setting("llm_settings", "idea_synth_persona", final_idea_persona):
-                 st.success(f"IdeaSynthesizer Persona updated to: {final_idea_persona}")
-
-        current_creativity = int(st.session_state.user_profile_data.get("llm_settings", {}).get("idea_synth_creativity", 3))
-        new_creativity = st.slider("Creativity Level (1=Practical, 5=Experimental)", 1, 5, current_creativity, key="idea_creativity_slider")
-        if new_creativity != current_creativity:
-            if update_profile_setting("llm_settings", "idea_synth_creativity", new_creativity):
-                st.success(f"IdeaSynthesizer Creativity updated to: {new_creativity}")
-
-        # CodeGenerator Settings (Example for persona)
-        st.markdown("##### Code Generator")
-        code_gen_personas = ["expert Python programmer", "beginner-friendly explainer", "performance-focused engineer", "security-conscious developer", "Custom"]
-        current_cg_persona = st.session_state.user_profile_data.get("llm_settings", {}).get("code_gen_persona", code_gen_personas[0])
-        # ... (similar selectbox and custom input logic for code_gen_persona as for idea_synth_persona) ...
-        # For brevity, I'll omit the full duplication, but it would follow the same pattern.
-        # You would then call update_profile_setting("llm_settings", "code_gen_persona", new_cg_persona)
-
-        st.divider()
-        st.subheader("Clear Profile")
-        if st.button("Clear Entire User Profile", type="secondary", key="clear_profile_btn"):
-            # Simple confirmation for now, could be a modal or more elaborate
-            confirm_clear = st.checkbox("I understand this will delete all my profile settings.", key="confirm_clear_profile_cb")
-            if confirm_clear:
-                try:
-                    response = httpx.post("http://localhost:8000/profile/clear", timeout=10)
-                    response.raise_for_status()
-                    st.success(response.json().get("message", "Profile cleared!"))
-                    fetch_profile() # Refresh data after clearing
-                except Exception as e:
-                    st.error(f"Failed to clear profile: {sanitize_for_display(str(e))}")
-
-        st.divider()
-        st.subheader("Provide Feedback on Last AI Interaction")
-
-        if 'last_interaction_for_feedback' not in st.session_state:
-            st.session_state.last_interaction_for_feedback = None
-
-        if st.button("Load Last Interaction for Feedback", key="load_last_interaction_btn"):
-            try:
-                response = httpx.get("http://localhost:8000/feedback/last_interaction", timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                if data.get("interaction"):
-                    st.session_state.last_interaction_for_feedback = data.get("interaction") # This should be a dict
-                else:
-                    st.session_state.last_interaction_for_feedback = None
-                    # Display the message from the API if no interaction is found
-                    st.info(data.get("message", "No recent AI interaction available for feedback."))
-            except Exception as e:
-                st.error(f"Failed to load last interaction: {sanitize_for_display(str(e))}")
-                st.session_state.last_interaction_for_feedback = None
-        
-        current_interaction = st.session_state.get('last_interaction_for_feedback')
-
-        if current_interaction and isinstance(current_interaction, dict):
-            interaction = current_interaction
-            st.markdown(f"**Regarding:** `{interaction.get('module', 'N/A')}` - `{interaction.get('method', 'N/A')}`")
-            st.markdown(f"**Prompt Summary:**")
-            st.caption(f"`{interaction.get('prompt_summary', 'N/A')}`")
-            st.markdown(f"**Output Summary:**")
-            st.caption(f"`{interaction.get('output_summary', 'N/A')}`")
-
-            with st.form("feedback_form", clear_on_submit=True):
-                feedback_rating = st.radio("Your Rating:", ("positive", "neutral", "negative"), key="feedback_rating_radio", horizontal=True)
-                feedback_comment = st.text_area("Optional Comment:", key="feedback_comment_area")
-                submitted_feedback = st.form_submit_button("Submit Feedback")
-
-                if submitted_feedback:
-                    try:
-                        payload = {"rating": feedback_rating, "comment": feedback_comment}
-                        response = httpx.post("http://localhost:8000/feedback", json=payload, timeout=10)
-                        response.raise_for_status()
-                        st.success(response.json().get("message", "Feedback submitted!"))
-                        # Clear the displayed interaction after submitting feedback
-                        st.session_state.last_interaction_for_feedback = None
-                    except Exception as e:
-                        st.error(f"Failed to submit feedback: {sanitize_for_display(str(e))}")
-        else:
-            st.info("Click 'Load Last Interaction for Feedback' to see details of the last AI output and provide your rating.")
-            # The button to load is already present above this section.
-
 
 if __name__ == "__main__":
     main()

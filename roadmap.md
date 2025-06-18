@@ -343,8 +343,10 @@ python main.py
     * Re-evaluate and iterate on the dashboard's UI/UX to minimize friction and align with a more intuitive, "vibe-driven" interaction style.
     * [x] **Task 18.1.1: Implement "Quick Actions & Focus Bar" in Dashboard Sidebar**
         * Added a sidebar to display and manage the current session focus, and for future quick action buttons.
-* [ ] **Task 18.2: Implement Visual Task Decomposition & Planning Interface**
+* [🚧] **Task 18.2: Implement Visual Task Decomposition & Planning Interface**
     * Create a dashboard component where users can visually break down high-level goals or see the agent's generated plan in a graphical format.
+    * [x] **Task 18.2.1: Enhance Dashboard Plan Display**
+        * Updated the "Generated Plan" view in the dashboard to use columns and icons for a more structured and visual representation of plan steps.
 * [🚧] **Task 18.3: Introduce Interactive "Vibe Sliders" for AI Behavior**
     * Add UI controls in the dashboard that allow the user to directly influence AI parameters (e.g., creativity, verbosity), linked to the `UserProfile`.
     * [x] **Task 18.3.1: Add UI Controls for IdeaSynthesizer Persona and Creativity**
@@ -354,8 +356,14 @@ python main.py
 
 ---
 ## Phase 19: 🔑 The Universal LLM Connector
-* [ ] **Task 19.1: Abstract LLM Provider Interactions**
+* [🚧] **Task 19.1: Abstract LLM Provider Interactions**
     * Develop a common interface/wrapper to allow seamless switching between different LLM providers (Gemini, Ollama, etc.).
+    * [x] **Task 19.1.1: Define `LLMProvider` Base Class**
+        * Created `core/llm_provider_base.py` with an abstract `generate_text` method.
+    * [x] **Task 19.1.2: Implement `GeminiProvider` and `OllamaProvider`**
+        * Created concrete provider classes for Gemini and Ollama.
+    * [x] **Task 19.1.3: Refactor Core Modules to Use `LLMProvider`**
+        * Updated `IdeaSynthesizer` and `CodeGenerator` to accept and use an `LLMProvider` instance.
 * [ ] **Task 19.2: Implement Secure and Flexible API Key Management & Selection**
     * Enhance API key management and allow users to select the active LLM provider/model via CLI and Dashboard, storing this in `UserProfile`.
 * [ ] **Task 19.3: Add "Auto-Recognition" of Model Capabilities (Stretch Goal)**

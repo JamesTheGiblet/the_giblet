@@ -20,16 +20,25 @@ from core.plugin_manager import PluginManager
 from core.watcher import start_watching # 1. Add the new import at the top
 from core.agent import Agent # 1. Add the new import
 from core.user_profile import UserProfile # New import for UserProfile
-from core.skill_manager import SkillManager # New import for SkillManager
+from core.skill_manager import SKILLS_DIR, SkillManager # New import for SkillManager
 from core.pattern_analyzer import PatternAnalyzer # New import
+from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 
 def start_cli_loop():
     """Starts the main interactive loop for The Giblet."""
     # --- Initialization ---
     memory = Memory() # Memory first
     user_profile = UserProfile(memory_system=memory) # UserProfile needs memory
-    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory) # Pass profile and memory
-    code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory) # Pass profile and memory
+
+    # Default LLM Provider for CLI - this will be made configurable later
+    # For now, let's assume Gemini is the default if available, else Ollama.
+    cli_llm_provider = GeminiProvider() # Assumes GEMINI_API_KEY is set
+    if not cli_llm_provider.is_available():
+        print("⚠️ Defaulting CLI LLM provider to Ollama as Gemini is not available/configured.")
+        cli_llm_provider = OllamaProvider() # Assumes Ollama is running locally on default port
+
+    idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
+    code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider)
     automator = Automator()
     git_analyzer = GitAnalyzer()
     command_manager = CommandManager()

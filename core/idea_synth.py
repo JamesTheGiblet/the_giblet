@@ -1,39 +1,27 @@
 # core/idea_synth.py
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
 from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
+from core.llm_provider_base import LLMProvider # Import LLMProvider
 
 class IdeaSynthesizer:
-    def __init__(self, user_profile: UserProfile, memory_system: Memory): # Add memory_system
+    def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
         """
-        Initializes the connection to the generative AI model, loading the API key from a .env file.
+        Initializes the IdeaSynthesizer with a user profile, memory system, and an LLM provider.
         """
         self.user_profile = user_profile # Store the user_profile instance
         self.memory = memory_system # Store the memory_system instance
-        try:
-            # <<< FIX: Explicitly use utf-8 encoding to read the .env file
-            load_dotenv(encoding='utf-8')
-            
-            self.api_key = os.getenv("GEMINI_API_KEY")
-            if not self.api_key:
-                raise ValueError("GEMINI_API_KEY not found in .env file or environment variables.")
-            
-            genai.configure(api_key=self.api_key)
-            # <<< CHANGED: Updated the model name to a current, valid model
-            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            print("🎨 Idea Synthesizer initialized with Gemini-1.5-Flash.")
-        except Exception as e:
-            print(f"❌ Failed to initialize Idea Synthesizer: {e}")
-            self.model = None
+        self.llm_provider = llm_provider
+        if self.llm_provider and self.llm_provider.is_available():
+            print(f"🎨 Idea Synthesizer initialized using {self.llm_provider.PROVIDER_NAME} with model {self.llm_provider.model_name}.")
+        else:
+            print(f"⚠️ Idea Synthesizer: LLM provider {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'} is not available.")
 
     def generate_ideas(self, prompt: str, weird_mode: bool = False) -> str:
         """
         Generates ideas based on a user prompt, with an optional 'weird_mode'.
         """
-        if not self.model:
-            return "Idea Synthesizer is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"Idea Synthesizer is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         company_name = self.user_profile.get_preference("general", "company_name", "their project")
@@ -79,14 +67,14 @@ class IdeaSynthesizer:
             """
         
         try:
-            response = self.model.generate_content(final_prompt)
+            response_text = self.llm_provider.generate_text(final_prompt)
             self.memory.remember('last_ai_interaction', {
                 "module": "IdeaSynthesizer",
                 "method": "generate_ideas",
                 "prompt_summary": prompt[:100], # Store a summary of the input
-                "output_summary": response.text[:150] # Store a summary of the output
+                "output_summary": response_text[:150] # Store a summary of the output
             })
-            return response.text
+            return response_text
         except Exception as e:
             return f"❌ An error occurred during idea generation: {e}"
 
@@ -96,8 +84,8 @@ class IdeaSynthesizer:
         """
         Generates a direct text response from the model based on a given prompt.
         """
-        if not self.model:
-            return "Idea Synthesizer is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"Idea Synthesizer is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         # Example of adding user context to a generic text generation prompt
@@ -106,14 +94,14 @@ class IdeaSynthesizer:
         print(f"🎨 Generating text for {user_name} based on prompt...")
 
         try:
-            response = self.model.generate_content(contextual_prompt) # Use contextual_prompt
+            response_text = self.llm_provider.generate_text(contextual_prompt)
             self.memory.remember('last_ai_interaction', {
                 "module": "IdeaSynthesizer",
                 "method": "generate_text",
                 "prompt_summary": prompt[:100],
-                "output_summary": response.text[:150]
+                "output_summary": response_text[:150]
             })
-            return response.text
+            return response_text
         except Exception as e:
             # Consider logging the full exception 'e' here for debugging
             return f"❌ An error occurred during text generation: {e}"

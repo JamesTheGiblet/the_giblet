@@ -1,32 +1,23 @@
 # core/code_generator.py
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
 from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
+from core.llm_provider_base import LLMProvider # Import LLMProvider
 
 class CodeGenerator:
-    def __init__(self, user_profile: UserProfile, memory_system: Memory): # Add memory_system
-        """Initializes the connection to the generative AI model for code generation."""
+    def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
+        """Initializes the CodeGenerator with a user profile, memory system, and an LLM provider."""
         self.user_profile = user_profile # Store the user_profile instance
         self.memory = memory_system # Store the memory_system instance
-        self.model = None
-        try:
-            load_dotenv()
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                raise ValueError("GEMINI_API_KEY not found.")
-
-            genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            print("💻 Code Generator initialized with Gemini-1.5-Flash.")
-        except Exception as e:
-            print(f"❌ Failed to initialize Code Generator: {e}")
+        self.llm_provider = llm_provider
+        if self.llm_provider and self.llm_provider.is_available():
+            print(f"💻 Code Generator initialized using {self.llm_provider.PROVIDER_NAME} with model {self.llm_provider.model_name}.")
+        else:
+            print(f"⚠️ Code Generator: LLM provider {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'} is not available.")
 
     def generate_function(self, prompt: str) -> str:
         """Generates a single, clean Python function from a prompt."""
-        if not self.model:
-            return "# Code Generator is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         preferred_quotes = self.user_profile.get_preference("coding_style", "quote_type", "double")
@@ -53,9 +44,9 @@ class CodeGenerator:
         """
 
         try:
-            response = self.model.generate_content(final_prompt)
+            response_text = self.llm_provider.generate_text(final_prompt)
             # Clean up the response to extract only the code block
-            code_block = response.text.strip()
+            code_block = response_text.strip()
             if code_block.startswith("```python"):
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
@@ -73,8 +64,8 @@ class CodeGenerator:
     # <<< NEW METHOD
     def generate_streamlit_ui(self, source_code: str, source_filename: str) -> str:
         """Generates a Streamlit UI from a Python data class definition."""
-        if not self.model:
-            return "# Code Generator is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         ui_style_preference = self.user_profile.get_preference("ui_style", "streamlit_theme", "default")
@@ -104,9 +95,9 @@ class CodeGenerator:
         """
 
         try:
-            response = self.model.generate_content(final_prompt)
+            response_text = self.llm_provider.generate_text(final_prompt)
             # Clean up the response to extract only the code block
-            code_block = response.text.strip()
+            code_block = response_text.strip()
             if code_block.startswith("```python"):
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
@@ -124,8 +115,8 @@ class CodeGenerator:
     # <<< NEW METHOD
     def refactor_code(self, source_code: str, instruction: str) -> str:
         """Refactors a block of code based on a specific instruction."""
-        if not self.model:
-            return f"# Code Generator is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         refactor_aggressiveness = self.user_profile.get_preference("coding_style", "refactor_aggressiveness", "moderate")
@@ -149,9 +140,9 @@ class CodeGenerator:
         """
 
         try:
-            response = self.model.generate_content(final_prompt)
+            response_text = self.llm_provider.generate_text(final_prompt)
             # Clean up the response to extract only the code block
-            code_block = response.text.strip()
+            code_block = response_text.strip()
             if code_block.startswith("```python"):
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
@@ -169,10 +160,10 @@ class CodeGenerator:
     # <<< NEW METHOD
     def generate_unit_tests(self, source_code: str, source_filename: str) -> str:
         """Generates pytest unit tests for a given block of source code."""
-        if not self.model:
-            return "# Code Generator is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
-        print(f"🔬 Generating unit tests for '{source_filename}'...")
+        print(f"🔬 Generating unit tests for '{source_filename}' using {self.llm_provider.PROVIDER_NAME}...")
 
         final_prompt = f"""
         You are an expert Python test generator who uses the pytest framework.
@@ -197,9 +188,9 @@ class CodeGenerator:
         """
 
         try:
-            response = self.model.generate_content(final_prompt)
+            response_text = self.llm_provider.generate_text(final_prompt)
             # Clean up the response to extract only the code block
-            code_block = response.text.strip()
+            code_block = response_text.strip()
             if code_block.startswith("```python"):
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
@@ -219,14 +210,14 @@ class CodeGenerator:
         Generates a direct text response from the model based on a given prompt,
         expecting a Python code block as the primary output.
         """
-        if not self.model:
-            return "# Code Generator is not available."
+        if not self.llm_provider or not self.llm_provider.is_available():
+            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
 
-        print(f"💻 Generating text from prompt (expecting code)...")
+        print(f"💻 Generating text from prompt (expecting code) using {self.llm_provider.PROVIDER_NAME}...")
         try:
-            response = self.model.generate_content(prompt)
+            response_text = self.llm_provider.generate_text(prompt)
             # Clean up the response to extract only the code block
-            code_block = response.text.strip()
+            code_block = response_text.strip()
             if code_block.startswith("```python"):
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
