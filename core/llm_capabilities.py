@@ -47,6 +47,7 @@ class LLMCapabilities:
         # Set some defaults if nothing specific is found
         self._capabilities.setdefault("context_window_tokens", 4096)
         self._capabilities.setdefault("supports_function_calling", False)
+        self._capabilities.setdefault("max_output_tokens", 1024) # Default max output tokens
         self._capabilities.setdefault("primary_modality", "text")
         self._capabilities.setdefault("output_formats", ["text"])
         self._capabilities.setdefault("strengths", [])
@@ -63,5 +64,9 @@ class LLMCapabilities:
     @property
     def supports_function_calling(self) -> bool:
         return self.get("supports_function_calling", False)
+
+    @property
+    def max_output_tokens(self) -> int:
+        return self.get("max_output_tokens", 1024)
 
     # Add more properties for commonly accessed capabilities

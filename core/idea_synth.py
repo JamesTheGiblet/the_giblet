@@ -2,6 +2,7 @@
 from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
 from core.llm_provider_base import LLMProvider # Import LLMProvider
+from core.llm_capabilities import LLMCapabilities # New import
 
 class IdeaSynthesizer:
     def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
@@ -11,8 +12,10 @@ class IdeaSynthesizer:
         self.user_profile = user_profile # Store the user_profile instance
         self.memory = memory_system # Store the memory_system instance
         self.llm_provider = llm_provider
+        self.capabilities = LLMCapabilities(provider=self.llm_provider, user_profile=self.user_profile)
+
         if self.llm_provider and self.llm_provider.is_available():
-            print(f"🎨 Idea Synthesizer initialized using {self.llm_provider.PROVIDER_NAME} with model {self.llm_provider.model_name}.")
+            print(f"🎨 Idea Synthesizer initialized using {self.llm_provider.PROVIDER_NAME} ({self.llm_provider.model_name}). Max output tokens: {self.capabilities.max_output_tokens}.")
         else:
             print(f"⚠️ Idea Synthesizer: LLM provider {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'} is not available.")
 
@@ -67,7 +70,10 @@ class IdeaSynthesizer:
             """
         
         try:
-            response_text = self.llm_provider.generate_text(final_prompt)
+            response_text = self.llm_provider.generate_text(
+                final_prompt,
+                max_tokens=self.capabilities.max_output_tokens
+            )
             self.memory.remember('last_ai_interaction', {
                 "module": "IdeaSynthesizer",
                 "method": "generate_ideas",
@@ -94,7 +100,10 @@ class IdeaSynthesizer:
         print(f"🎨 Generating text for {user_name} based on prompt...")
 
         try:
-            response_text = self.llm_provider.generate_text(contextual_prompt)
+            response_text = self.llm_provider.generate_text(
+                contextual_prompt,
+                max_tokens=self.capabilities.max_output_tokens
+            )
             self.memory.remember('last_ai_interaction', {
                 "module": "IdeaSynthesizer",
                 "method": "generate_text",

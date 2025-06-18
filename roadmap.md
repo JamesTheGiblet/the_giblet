@@ -388,8 +388,9 @@ python main.py
         * Added `assess model` command to CLI.
         * Added UI in Dashboard's "Profile" tab to run the gauntlet and view results.
         * Added `gauntlet edit` command and UI button to launch `gauntlet_editor.py`.
-    * [ ] **Task 19.3.5: Integrate Basic Capability Checks into Core Modules**
+    * [x] **Task 19.3.5: Integrate Basic Capability Checks into Core Modules**
         * Begin modifying `IdeaSynthesizer`, `CodeGenerator`, and `Agent` to query `LLMCapabilities` and make simple adjustments (e.g., to `max_tokens` or prompt formatting).
+        * Integrated `LLMCapabilities` into `IdeaSynthesizer` and `CodeGenerator` to adjust `max_output_tokens` for LLM calls.
     * [ ] **Task 19.3.6: Research and Implement Provider Metadata Fetching (Gemini, Ollama)**
         * Investigate and add code to `LLMCapabilities` to query provider APIs for model details, if available.
     * [ ] **Task 19.3.7: Store and Utilize Gauntlet-Generated Profiles**

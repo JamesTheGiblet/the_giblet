@@ -1,0 +1,26 @@
+{
+  "gemini-1.5-flash-latest": {
+    "context_window_tokens": 1048576,
+    "supports_function_calling": true,
+    "primary_modality": "text",
+    "max_output_tokens": 8192,
+    "output_formats": ["text", "json", "markdown"],
+    "strengths": ["code_generation", "creativity", "long_context"]
+  },
+  "gemini-pro": {
+    "context_window_tokens": 32768,
+    "supports_function_calling": true,
+    "primary_modality": "text",
+    "max_output_tokens": 2048,
+    "output_formats": ["text", "json", "markdown"],
+    "strengths": ["code_generation", "reasoning"]
+  },
+  "ollama/mistral": {
+    "context_window_tokens": 8192,
+    "supports_function_calling": false,
+    "primary_modality": "text",
+    "max_output_tokens": 2048,
+    "output_formats": ["text"],
+    "strengths": ["text_completion", "chat"]
+  }
+}
