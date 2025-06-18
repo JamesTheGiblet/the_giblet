@@ -476,11 +476,17 @@ def start_cli_loop():
         print(f"Preparing to assess LLM: {cli_llm_provider.PROVIDER_NAME} - {cli_llm_provider.model_name}")
         assessor = CapabilityAssessor(llm_provider=cli_llm_provider, code_generator=code_generator, idea_synthesizer=idea_synth)
         capability_profile = assessor.run_gauntlet()
-        
+
         print("\n--- LLM Capability Profile ---")
         print(json.dumps(capability_profile, indent=2))
         print("----------------------------\n")
-        # Future: Offer to save this to UserProfile or a dedicated capabilities cache.
+
+        if capability_profile:
+            provider_name = capability_profile.get("provider_name")
+            model_name = capability_profile.get("model_name")
+            if provider_name and model_name:
+                user_profile.save_gauntlet_profile(provider_name, model_name, capability_profile)
+                # Confirmation already printed by save_gauntlet_profile
 
     register("assess model", handle_assess_model, "Runs capability tests (gauntlet) on the current LLM.")
 

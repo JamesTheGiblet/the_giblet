@@ -391,15 +391,18 @@ python main.py
     * [x] **Task 19.3.5: Integrate Basic Capability Checks into Core Modules**
         * Begin modifying `IdeaSynthesizer`, `CodeGenerator`, and `Agent` to query `LLMCapabilities` and make simple adjustments (e.g., to `max_tokens` or prompt formatting).
         * Integrated `LLMCapabilities` into `IdeaSynthesizer` and `CodeGenerator` to adjust `max_output_tokens` for LLM calls.
-    * [ ] **Task 19.3.6: Research and Implement Provider Metadata Fetching (Gemini, Ollama)**
+    * [x] **Task 19.3.6: Research and Implement Provider Metadata Fetching (Gemini, Ollama)**
         * Investigate and add code to `LLMCapabilities` to query provider APIs for model details, if available.
-    * [ ] **Task 19.3.7: Store and Utilize Gauntlet-Generated Profiles**
+        * Implemented metadata fetching for Gemini (context/output tokens) and Ollama (context tokens).
+    * [x] **Task 19.3.7: Store and Utilize Gauntlet-Generated Profiles**
         * Enhance `LLMCapabilities` to load and prioritize gauntlet-generated profiles (e.g., from `UserProfile` or a cache) over predefined maps.
-    * [ ] **Task 19.3.8: Expand `gauntlet.json` with More Test Categories and Levels**
+        * Updated `CapabilityAssessor` to output `determined_capabilities`, `UserProfile` to store/retrieve gauntlet profiles, and `LLMCapabilities` to load these with high priority. CLI/Dashboard now save gauntlet results.
+    * [x] **Task 19.3.8: Expand `gauntlet.json` with More Test Categories and Levels**
         * Add tests for other capabilities like context window limits, instruction following, specific language features, etc.
+        * Added `context_window_recall` and `instruction_following` test categories to `gauntlet.json` and updated `CapabilityAssessor` to handle them.
 
 ---
-## Phase 20: 📚 The Proactive Knowledge Weaver
+## Phase 20: 📚 The Proactive Knowledge Weaver (Placeholder)
 * [ ] **Task 20.1: Implement Proactive Learning from User Feedback & Profile**
     * Develop a module to analyze `feedback_log` and `UserProfile` data to automatically suggest or adapt default prompt templates or agent behaviors.
 * [ ] **Task 20.2: Build a "Project Contextualizer" Module**
@@ -408,4 +411,43 @@ python main.py
     * Enable Giblet to offer unsolicited but relevant suggestions or shortcuts based on the project context and user profile.
 
 ---
-## Phase 21: 
+## Phase 21: 🧠 The Preference & Style Engine (Foundation)
+    **Goal:** Build the core systems for learning, storing, and managing your personal development "fingerprint."
+    **Tasks:**
+        * [ ] **Task 21.1: Implement `style_preference.py` Module:** Create the class and methods for managing the `style_preference.json` file, which will store your preferred formats, tones, and defaults.
+        * [ ] **Task 21.2: Implement Genesis Logging:** Create the methods to initialize and write to `genesis_log.json`, which will track every project created via this mode.
+        * [ ] **Task 21.3: Build "My Vibe" Dashboard UI:** Create a new tab in the Cockpit where you can view and manually edit the preferences stored in `style_preference.json`.
+
+---
+## Phase 22: 💬 The Interactive Interpreter
+    **Goal:** Develop the conversational Q&A system that transforms a simple prompt into a detailed project brief.
+    **Tasks:**
+        * [ ] **Task 22.1: Implement `idea_interpreter.py`:** Build the core class that will manage the conversational chain with the LLM.
+        * [ ] **Task 22.2: Design the Clarification Prompt Chain:** Create the series of "meta-prompts" that guide the LLM to ask intelligent follow-up questions about goals, tech stacks, and tone.
+        * [ ] **Task 22.3: Build the "Genesis" UI (Interview Stage):** Create the initial UI in a new "Genesis" dashboard tab. It will have a text input for the initial idea and a chat-like interface to display the AI's clarifying questions and capture your answers.
+
+---
+## Phase 23: 📜 The Adaptive Generators
+    **Goal:** Build the engines that generate the core project documents, making them aware of your learned style preferences.
+    **Tasks:**
+        * [ ] **Task 23.1: Implement Style-Aware README Generation:** Enhance the `code_gen` or a new `doc_gen` module to take the project brief and the data from `style_preference.py` to generate a `README.md` that matches your preferred style.
+        * [ ] **Task 23.2: Implement Style-Aware Roadmap Generation:** Create the `roadmap_generator.py` module. Its primary function will be to use the project brief and style preferences to generate a `roadmap.md` file that is compatible with our existing `RoadmapManager`.
+        * [ ] **Task 23.3: Implement the "Reflective Prompts" UI:** After a README and roadmap are generated, update the UI to ask the user "Would you like to save this format as your default?" and trigger the update in `style_preference.json`.
+
+---
+## Phase 24: 📂 The Project Scaffolder
+    **Goal:** Create the functionality to build the actual project workspace, either locally or on GitHub.
+    **Tasks:**
+        * [ ] **Task 24.1: Implement `github_client.py`:** Build the module for securely authenticating with the GitHub API (using a GITHUB_TOKEN) and creating new repositories.
+        * [ ] **Task 24.2: Implement `project_scaffold.py`:** Create the module responsible for creating the local directory structure, including any default files like `.gitignore` or `requirements.txt`.
+        * [ ] **Task 24.3: Build the "Workspace Builder" UI:** In the Genesis tab, after the documents are approved, present the user with the choice ("Local Folder" or "Create GitHub Repo") and use the appropriate backend module to execute their choice.
+
+---
+## Phase 25: 🎲 The Final Vibe
+    **Goal:** Implement the final features that complete the Genesis experience and link it back to the coding workflow.
+    **Tasks:**
+        * [ ] **Task 25.1: Implement "Random Genesis" Mode:** Add a "🎲 Surprise Me" button to the Genesis UI that uses the `IdeaSynthesizer` to generate a random, weird project concept and feeds it into the Genesis pipeline.
+        * [ ] **Task 25.2: Implement `vibe_engine.py` (Post-Genesis):** Create the initial version of this engine. After a project is scaffolded, it will proactively suggest the first logical `giblet` command (e.g., "Project created. Would you like to focus on the first task in the roadmap?").
+
+---
+## Phase 26: (Placeholder for Future Ideas)

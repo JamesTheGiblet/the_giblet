@@ -626,6 +626,16 @@ def main():
                         assessor = CapabilityAssessor(llm_provider=dashboard_llm_provider, code_generator=cg_for_assessment, idea_synthesizer=is_for_assessment)
                         st.session_state.gauntlet_results = assessor.run_gauntlet()
                         st.success("Capability Gauntlet finished!")
+
+                        # Save the gauntlet results to UserProfile
+                        if st.session_state.gauntlet_results:
+                            profile_data = st.session_state.gauntlet_results
+                            provider_name = profile_data.get("provider_name")
+                            model_name = profile_data.get("model_name")
+                            if provider_name and model_name and user_profile_instance:
+                                user_profile_instance.save_gauntlet_profile(provider_name, model_name, profile_data)
+                                st.toast(f"Gauntlet profile saved for {provider_name}/{model_name}!", icon="💾")
+
                     except Exception as e_gauntlet:
                         st.error(f"An error occurred during the Gauntlet run: {sanitize_for_display(str(e_gauntlet))}")
         

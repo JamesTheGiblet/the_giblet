@@ -59,6 +59,56 @@
           { "id": 3, "name": "Charlie", "active": true }
         ]
       }
+    ],
+    "context_window_recall": [
+      {
+        "level": 1,
+        "id": "ctx_recall_lvl1",
+        "prompt_template": "Here is a lot of text to remember. The special code is {needle}. Now, tell me, what is the special code mentioned in the text you just read? Only respond with the special code. The text also includes this filler: {haystack}",
+        "needle": "BLUEPENGUIN7",
+        "haystack_size_kb": 1,
+        "validation_type": "exact_match_needle"
+      },
+      {
+        "level": 2,
+        "id": "ctx_recall_lvl2",
+        "prompt_template": "Deep within this document, there is a critical piece of information. That information is: {needle}. Please identify and return only this critical piece of information. The document contains various sections, including: {haystack}",
+        "needle": "QUANTUMLEAPFROG",
+        "haystack_size_kb": 4,
+        "validation_type": "exact_match_needle"
+      },
+      {
+        "level": 3,
+        "id": "ctx_recall_lvl3",
+        "prompt_template": "Buried in the following extensive report is a unique identifier: {needle}. Your task is to find and state this identifier and nothing else. The report covers many topics, such as: {haystack}",
+        "needle": "GALACTICSQUIRREL",
+        "haystack_size_kb": 8,
+        "validation_type": "exact_match_needle"
+      }
+    ],
+    "instruction_following": [
+      {
+        "level": 1,
+        "id": "instr_follow_lvl1",
+        "prompt": "Describe a red apple in exactly 15 words. Start your description with the phrase 'An apple is'. Do not use the letter 'e'.",
+        "validation_type": "multi_constraint_check",
+        "constraints": [
+          {"type": "word_count_exact", "value": 15},
+          {"type": "starts_with", "value": "An apple is"},
+          {"type": "not_contains_char", "value": "e"}
+        ]
+      },
+      {
+        "level": 2,
+        "id": "instr_follow_lvl2",
+        "prompt": "Write a short poem about a cat. The poem must have exactly 3 lines. The second line must contain the word 'moon'. The poem must not rhyme. Output the poem as a JSON object with a single key 'poem' whose value is a list of strings (each string being a line of the poem).",
+        "validation_type": "multi_constraint_check",
+        "constraints": [
+          {"type": "json_parsable"},
+          {"type": "json_has_key", "key": "poem", "value_type": "list"},
+          {"type": "list_length_exact", "json_path": "poem", "value": 3},
+          {"type": "list_item_contains_text", "json_path": "poem", "item_index": 1, "value": "moon"}
+        ]
+      }
     ]
   }
-  

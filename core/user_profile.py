@@ -103,3 +103,27 @@ class UserProfile:
         self.data["feedback_log"].append(feedback_entry)
         self.save()
         print(f"🗣️ Feedback received: {rating} - '{comment[:50]}...'")
+
+    def save_gauntlet_profile(self, provider_name: str, model_name: str, profile_data: dict):
+        """Saves a gauntlet-generated capability profile for a specific LLM."""
+        if "llm_gauntlet_profiles" not in self.data:
+            self.data["llm_gauntlet_profiles"] = {}
+        
+        # Ensure provider_name key exists
+        if provider_name not in self.data["llm_gauntlet_profiles"]:
+            self.data["llm_gauntlet_profiles"][provider_name] = {}
+            
+        self.data["llm_gauntlet_profiles"][provider_name][model_name] = profile_data
+        self.save() # Use the existing save method of UserProfile
+        print(f"💾 Gauntlet profile saved for {provider_name}/{model_name}.")
+
+    def get_gauntlet_profile(self, provider_name: str, model_name: str) -> dict | None:
+        """Retrieves a gauntlet-generated capability profile for a specific LLM."""
+        profiles_root = self.data.get("llm_gauntlet_profiles")
+        if not isinstance(profiles_root, dict): # Check if it's a dict
+            return None
+        
+        provider_profiles = profiles_root.get(provider_name)
+        if not isinstance(provider_profiles, dict): # Check if this level is a dict
+            return None
+        return provider_profiles.get(model_name)

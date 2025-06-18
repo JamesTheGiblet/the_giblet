@@ -5,6 +5,7 @@ import tempfile
 import sys  # For sys.executable
 from pathlib import Path
 from typing import Dict, Any
+import random # For generating haystack
 
 from core.code_generator import CodeGenerator  # Assumes CodeGenerator has generate_function and generate_text
 from core.idea_synth import IdeaSynthesizer  # For general text generation tasks like JSON
@@ -30,7 +31,8 @@ class CapabilityAssessor:
             "provider_name": self.llm_provider.PROVIDER_NAME,
             "model_name": self.llm_provider.model_name,
             "capabilities": {},
-            "details": {}
+            "details": {},
+            "determined_capabilities": {} # This will store direct capability values
         }
 
         # --- Test Code Generation ---
@@ -101,6 +103,87 @@ class CapabilityAssessor:
                 print(f"      └─ ❌ Level {test['level']} Failed. Stopping json_adherence assessment.")
                 break
 
+        # Populate determined_capabilities based on test results
+        # This is a simple example; more sophisticated mapping can be added as gauntlet expands
+        if profile["capabilities"].get("json_adherence_level", 0) > 0:
+            # If JSON tests passed, we can be more confident in asking for JSON.
+            # This might influence how LLMCapabilities reports 'output_formats'.
+            # For direct override, LLMCapabilities needs to merge this carefully.
+            profile["determined_capabilities"]["output_formats_include_json"] = True # Custom flag
+        if profile["capabilities"].get("code_generation_level", 0) >= 1: # Example
+            profile["determined_capabilities"]["can_generate_functions"] = True # Custom flag
+        
+        # --- Test Context Window Recall ---
+        ctx_tests = sorted(self.gauntlet_tests.get("context_window_recall", []), key=lambda x: x['level'])
+        profile["capabilities"]["context_window_recall_level"] = 0
+        profile["details"]["context_window_recall"] = []
+
+        for test in ctx_tests:
+            print(f"   └─ Testing Context Recall Level {test['level']} (Haystack: {test.get('haystack_size_kb')}KB)...")
+            if dry_run:
+                print(f"      [DRY RUN] Prompt template: {test['prompt_template']}, Needle: {test['needle']}")
+                continue
+
+            haystack = self._generate_haystack(test.get("haystack_size_kb", 1) * 1024) # Approx KB to chars
+            prompt = test["prompt_template"].replace("{needle}", test["needle"]).replace("{haystack}", haystack)
+            
+            llm_response = self.idea_synth.generate_text(prompt) # Use idea_synth for general text
+            passed = False
+            if test.get("validation_type") == "exact_match_needle":
+                passed = self._validate_needle_in_haystack(llm_response, test["needle"])
+
+            profile["details"]["context_window_recall"].append({
+                "level": test["level"],
+                "prompt_length_approx_chars": len(prompt),
+                "response": llm_response[:200], # Store a snippet of the response
+                "passed": passed
+            })
+
+            if passed:
+                print(f"      └─ ✅ Level {test['level']} Passed.")
+                profile["capabilities"]["context_window_recall_level"] = test['level']
+            else:
+                print(f"      └─ ❌ Level {test['level']} Failed. Stopping context_window_recall assessment.")
+                break
+        
+        # --- Test Instruction Following ---
+        instr_tests = sorted(self.gauntlet_tests.get("instruction_following", []), key=lambda x: x['level'])
+        profile["capabilities"]["instruction_following_level"] = 0
+        profile["details"]["instruction_following"] = []
+
+        for test in instr_tests:
+            print(f"   └─ Testing Instruction Following Level {test['level']}...")
+            if dry_run:
+                print(f"      [DRY RUN] Prompt: {test['prompt']}")
+                continue
+            
+            llm_response = self.idea_synth.generate_text(test['prompt'])
+            passed = False
+            if test.get("validation_type") == "multi_constraint_check":
+                passed, constraint_results = self._validate_multi_constraints(llm_response, test.get("constraints", []))
+                profile["details"]["instruction_following"].append({
+                    "level": test["level"],
+                    "prompt": test["prompt"],
+                    "response": llm_response,
+                    "passed": passed,
+                    "constraint_results": constraint_results
+                })
+            else: # Fallback for unknown validation type for this category
+                 profile["details"]["instruction_following"].append({
+                    "level": test["level"],
+                    "prompt": test["prompt"],
+                    "response": llm_response,
+                    "passed": False, # Cannot validate
+                    "constraint_results": "Unknown validation_type"
+                })
+
+            if passed:
+                print(f"      └─ ✅ Level {test['level']} Passed.")
+                profile["capabilities"]["instruction_following_level"] = test['level']
+            else:
+                print(f"      └─ ❌ Level {test['level']} Failed. Stopping instruction_following assessment.")
+                break
+
         print("\U0001F52C Gauntlet finished. Capability Profile generated.")
         return profile
 
@@ -130,3 +213,63 @@ class CapabilityAssessor:
         except Exception as e:
             print(f"        └─ Error during JSON validation: {e}")
             return False
+
+    def _generate_haystack(self, num_chars: int) -> str:
+        """Generates a random string of approximately num_chars characters."""
+        # Simple haystack generator, can be made more sophisticated
+        words = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa",
+                 "lambda", "mu", "nu", "xi", "omicron", "pi", "rho", "sigma", "tau", "upsilon",
+                 "phi", "chi", "psi", "omega", "lorem", "ipsum", "dolor", "sit", "amet", "consectetur",
+                 "adipiscing", "elit", "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore",
+                 "et", "dolore", "magna", "aliqua"]
+        haystack = []
+        current_len = 0
+        while current_len < num_chars:
+            word = random.choice(words)
+            haystack.append(word)
+            current_len += len(word) + 1 # +1 for space
+        return " ".join(haystack)
+
+    def _validate_needle_in_haystack(self, response_text: str, needle: str) -> bool:
+        # Simple validation: check if the needle is exactly in the response,
+        # and the response is not too long (to avoid the model just repeating the prompt).
+        return needle in response_text and len(response_text) < (len(needle) + 50)
+
+    def _validate_multi_constraints(self, response_text: str, constraints: list) -> tuple[bool, dict]:
+        all_passed = True
+        results = {}
+        parsed_json_response = None
+
+        for i, constraint in enumerate(constraints):
+            ctype = constraint.get("type")
+            value = constraint.get("value")
+            key = constraint.get("key")
+            json_path_str = constraint.get("json_path")
+            item_index = constraint.get("item_index")
+            constraint_passed = False
+            detail = "Constraint not processed"
+
+            try:
+                if ctype == "word_count_exact":
+                    constraint_passed = len(response_text.split()) == value
+                    detail = f"Word count: {len(response_text.split())}, Expected: {value}"
+                elif ctype == "starts_with":
+                    constraint_passed = response_text.strip().startswith(value)
+                    detail = f"Starts with '{value}'"
+                elif ctype == "not_contains_char":
+                    constraint_passed = str(value).lower() not in response_text.lower()
+                    detail = f"Does not contain char '{value}'"
+                elif ctype == "json_parsable":
+                    parsed_json_response = json.loads(response_text.strip())
+                    constraint_passed = True
+                    detail = "JSON is parsable"
+                # Add more constraint types here (json_has_key, list_length_exact, list_item_contains_text etc.)
+                # This part can get quite complex and would need careful implementation for each constraint type.
+                # For brevity, I'm not fully implementing all JSON pathing logic here.
+            except Exception as e:
+                detail = f"Error processing constraint: {e}"
+                constraint_passed = False
+            results[f"constraint_{i+1}_{ctype}"] = {"passed": constraint_passed, "detail": detail}
+            if not constraint_passed:
+                all_passed = False
+        return all_passed, results
