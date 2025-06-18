@@ -135,12 +135,13 @@ class ProfileResponse(BaseModel):
     message: str | None = None
 
 # New Pydantic models for Feedback
-class FeedbackRequest(BaseModel):
-    rating: str # e.g., "positive", "negative", "neutral"
+class FeedbackSubmitRequest(BaseModel): # Renamed to avoid confusion with internal models
+    rating: int # e.g., 5, 3, 1
     comment: str = ""
+    context_id: str | None = None # Optional context_id
 
 class LastInteractionResponse(BaseModel):
-    interaction: dict | None = None
+    interaction: dict[str, Any] | None = None # Use dict[str, Any] for clarity
     message: str | None = None
 
 # Pydantic model for setting focus
@@ -255,26 +256,26 @@ def clear_user_profile_endpoint():
     return ProfileResponse(message="User profile cleared successfully.")
 
 
-# --- Feedback API Endpoints ---
 @app.get("/feedback/last_interaction", response_model=LastInteractionResponse)
 def get_last_ai_interaction_endpoint():
     """Retrieves the last AI interaction stored in memory."""
     interaction = memory.recall('last_ai_interaction')
-    # Ensure interaction is a dictionary before trying to use it
     if interaction and isinstance(interaction, dict):
         return LastInteractionResponse(interaction=interaction)
     return LastInteractionResponse(message="No recent AI interaction found in memory.", interaction=None)
 
-@app.post("/feedback", response_model=ProfileResponse) # Reusing ProfileResponse for simple message
-def submit_feedback_endpoint(request: FeedbackRequest):
-    """Submits feedback for the last AI interaction."""
-    last_interaction = memory.recall('last_ai_interaction')
-    if not last_interaction:
-        return ProfileResponse(message="Could not submit feedback: No last AI interaction found.")
-
-    user_profile_instance.add_feedback(request.rating, request.comment, context=last_interaction)
-    memory.remember('last_ai_interaction', None) # Clear after feedback is given
-    return ProfileResponse(message=f"Feedback ('{request.rating}') submitted successfully.")
+@app.post("/feedback", response_model=ProfileResponse)
+async def submit_feedback_endpoint(request: FeedbackSubmitRequest): # Use the new request model
+    """Submits feedback, optionally including a context_id."""
+    try:
+        # UserProfile.add_feedback expects rating as int, comment as str, and context_id as str | None
+        user_profile_instance.add_feedback(request.rating, request.comment, context_id=request.context_id)
+        # Optionally clear last_ai_interaction from memory if it's always tied to feedback submission
+        # memory.remember('last_ai_interaction', None) 
+        return ProfileResponse(message="Feedback submitted successfully!")
+    except Exception as e:
+        # Consider logging the exception e
+        raise HTTPException(status_code=500, detail=f"Error submitting feedback: {str(e)}")
 
 
 # --- Memory/Focus API Endpoints ---

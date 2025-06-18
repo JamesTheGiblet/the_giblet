@@ -85,24 +85,27 @@ class UserProfile:
         self.save()
         print("👤 User profile cleared.")
 
-    def add_feedback(self, rating: str, comment: str, context: dict | None = None):
+    def add_feedback(self, rating: int, comment: str, context_id: str | None = None):
         """
         Adds a feedback entry to the user profile.
-        Rating can be 'positive', 'negative', 'neutral'.
-        Context should be a dictionary describing what the feedback is about.
+        Rating should be an integer (e.g., 1-5).
+        context_id is an optional string identifying the interaction.
         """
         if "feedback_log" not in self.data:
             self.data["feedback_log"] = []
         
+        timestamp = datetime.now().isoformat()
         feedback_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "rating": rating.lower(),
+            "timestamp": timestamp,
+            "rating": rating, # Rating is now an int
             "comment": comment,
-            "context": context or {} # Store the context of the AI interaction
         }
+        if context_id:
+            feedback_entry["context_id"] = context_id # Use 'context_id' consistently
+
         self.data["feedback_log"].append(feedback_entry)
         self.save()
-        print(f"🗣️ Feedback received: {rating} - '{comment[:50]}...'")
+        print(f"🗣️ Feedback received: Rating {rating} - '{comment[:50]}...'")
 
     def save_gauntlet_profile(self, provider_name: str, model_name: str, profile_data: dict):
         """Saves a gauntlet-generated capability profile for a specific LLM."""

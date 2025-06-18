@@ -1,8 +1,10 @@
 # core/code_generator.py
+import logging # <<< NEW IMPORT
 from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
 from core.llm_provider_base import LLMProvider # Import LLMProvider
 from core.llm_capabilities import LLMCapabilities # New import
+
 
 class CodeGenerator:
     def __init__(self, user_profile: UserProfile, memory_system: Memory, llm_provider: LLMProvider):
@@ -11,6 +13,7 @@ class CodeGenerator:
         self.memory = memory_system # Store the memory_system instance
         self.llm_provider = llm_provider
         self.capabilities = LLMCapabilities(provider=self.llm_provider, user_profile=self.user_profile)
+        self.logger = logging.getLogger(__name__) # <<< ADDED LOGGER
 
         if self.llm_provider and self.llm_provider.is_available():
             print(f"💻 Code Generator initialized using {self.llm_provider.PROVIDER_NAME} ({self.llm_provider.model_name}). Max output tokens: {self.capabilities.max_output_tokens}.")
@@ -57,12 +60,17 @@ class CodeGenerator:
                 code_block = code_block[len("```python"):].strip()
             if code_block.endswith("```"):
                 code_block = code_block[:-len("```")].strip()
-            self.memory.remember('last_ai_interaction', {
+            
+            # Store the generated code with a context ID and other relevant info
+            interaction_data = {
+                "output": code_block,
+                "context_id": "code_gen:function_from_prompt",
                 "module": "CodeGenerator",
                 "method": "generate_function",
-                "prompt_summary": prompt[:100],
-                "output_summary": code_block[:150]
-            })
+                "prompt_summary": prompt[:100]
+            }
+            self.memory.remember('last_ai_interaction', interaction_data)
+            self.logger.info(f"Generated code for function based on prompt: {prompt[:50]}...")
             return code_block
         except Exception as e:
             return f"# An error occurred during code generation: {e}"
@@ -168,7 +176,7 @@ class CodeGenerator:
             return code_block
         except Exception as e:
             return f"# An error occurred during code refactoring: {e}"
-        
+         
     # <<< NEW METHOD
     def generate_unit_tests(self, source_code: str, source_filename: str) -> str:
         """Generates pytest unit tests for a given block of source code."""

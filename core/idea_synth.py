@@ -68,18 +68,23 @@ class IdeaSynthesizer:
             For each idea, briefly list its pros and cons.
             Format the output clearly.
             """
-        
+         
         try:
             response_text = self.llm_provider.generate_text(
                 final_prompt,
                 max_tokens=self.capabilities.max_output_tokens
             )
-            self.memory.remember('last_ai_interaction', {
+            response_text = response_text.strip() # Ensure leading/trailing whitespace is removed
+
+            # Store the generated content with a specific context_id
+            interaction_data = {
+                "output": response_text, # Store the full output
+                "context_id": f"idea_synth:{'weird' if weird_mode else 'standard'}_ideas",
                 "module": "IdeaSynthesizer",
                 "method": "generate_ideas",
-                "prompt_summary": prompt[:100], # Store a summary of the input
-                "output_summary": response_text[:150] # Store a summary of the output
-            })
+                "prompt_summary": prompt[:100] # Keep a summary of the input prompt
+            }
+            self.memory.remember('last_ai_interaction', interaction_data)
             return response_text
         except Exception as e:
             return f"❌ An error occurred during idea generation: {e}"

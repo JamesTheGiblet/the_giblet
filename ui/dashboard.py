@@ -709,11 +709,29 @@ def main():
         if st.session_state.last_ai_interaction:
             st.json(st.session_state.last_ai_interaction)
             feedback_rating = st.selectbox("Rate this interaction:", ["", "positive", "neutral", "negative"], key="feedback_rating")
-            feedback_comment = st.text_area("Additional comments:", key="feedback_comment")
-            if st.button("Submit Feedback", key="submit_feedback_btn"):
+            feedback_comment = st.text_area("Additional comments:", key="feedback_comment") # Ensure comment field is present
+            if st.button("Submit Feedback", key="submit_feedback_btn"): # Logic from the second snippet starts here
+
                 if feedback_rating:
                     try:
-                        payload = {"rating": feedback_rating, "comment": feedback_comment}
+                        # --- Refined rating mapping to integers (same as CLI) ---
+                        rating_map = {"positive": 5, "neutral": 3, "negative": 1}
+                        rating = rating_map.get(feedback_rating)
+                        if rating is None:
+                            st.error(f"Invalid feedback rating: '{feedback_rating}'. Please select from the options.")
+                            # In Streamlit, if this is part of the main script flow and not in a callback,
+                            # st.stop() would halt execution. 'return' is fine if this is in a function.
+                            # The full file context uses 'return', which is acceptable here.
+                            return 
+                        
+
+                        payload = {"rating": rating, "comment": feedback_comment}
+                        # Add context_id if available
+                        if isinstance(st.session_state.last_ai_interaction, dict) and "context_id" in st.session_state.last_ai_interaction:
+                            payload["context_id"] = st.session_state.last_ai_interaction["context_id"]
+                        else:
+                            st.warning("No context_id found for this feedback. Submitting without context.")
+
                         response = httpx.post("http://localhost:8000/feedback", json=payload, timeout=10)
                         response.raise_for_status()
                         st.success(response.json().get("message", "Feedback submitted!"))

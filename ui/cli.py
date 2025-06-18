@@ -559,16 +559,25 @@ def start_cli_loop():
             print("Example: feedback good Loved the creativity!")
             return
 
-        rating_map = {
-            "good": "positive", "positive": "positive",
-            "bad": "negative", "negative": "negative",
-            "ok": "neutral", "neutral": "neutral"
-        }
-        rating = rating_map.get(args[0].lower())
+        # --- Refined rating mapping to integers ---
+        rating_map = {"good": 5, "positive": 5,
+                      "ok": 3, "neutral": 3,
+                      "bad": 1, "negative": 1}
+        rating_str = args[0].lower() # To match the keys in rating_map, which are lowercase
+        rating = rating_map.get(rating_str)
+        if rating is None:
+            print(f"Invalid feedback rating: '{rating_str}'. Please use 'good', 'ok', or 'bad'.")
+            return
+
         comment = " ".join(args[1:]) if len(args) > 1 else ""
 
         last_interaction = memory.recall('last_ai_interaction')
-        user_profile.add_feedback(rating, comment, context=last_interaction)
+        if isinstance(last_interaction, dict) and "context_id" in last_interaction and "output" in last_interaction:
+            context_id = last_interaction["context_id"]
+            user_profile.add_feedback(rating, comment, context_id=context_id)
+        else:
+            print("Warning: No valid last AI interaction found with context_id. Recording feedback without context.")
+            user_profile.add_feedback(rating, comment)
         memory.remember('last_ai_interaction', None) # Clear after feedback is given
 
     register("feedback", handle_feedback, "Provide feedback on the last AI-generated output.")
