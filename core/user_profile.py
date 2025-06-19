@@ -68,11 +68,19 @@ class UserProfile:
         Adds or updates a preference in a specific category.
         Example: add_preference("coding_style", "indent_size", 4)
         """
-        if category not in self.data:
-            self.data[category] = {}
-        self.data[category][key] = value
-        self.save()
-        print(f"👤 Profile: '{category}.{key}' set to '{value}'.")
+        # Handle dot-separated categories for nesting
+        current_level = self.data
+        if isinstance(category, str) and '.' in category:
+            parts = category.split('.')
+            for part in parts[:-1]:
+                current_level = current_level.setdefault(part, {})
+            final_category_key = parts[-1]
+        else: # Original behavior for non-nested or already nested category
+            final_category_key = category
+
+        current_level.setdefault(final_category_key, {})[key] = value
+        self.save() # Save after modification
+        print(f"👤 Profile: '{category if isinstance(category, str) else '.'.join(category)}.{key}' set to '{value}'.")
 
     def get_preference(self, category: str, key: str, default: any = None) -> any:
         """
@@ -115,6 +123,11 @@ class UserProfile:
         self.data["feedback_log"].append(feedback_entry)
         self.save()
         print(f"🗣️ Feedback received: Rating {rating} - '{comment[:50]}...'")
+
+    def get_feedback_log(self) -> list[dict]:
+        """Retrieves the feedback log from the profile data."""
+        return self.data.get("feedback_log", [])
+
 
     def save_gauntlet_profile(self, provider_name: str, model_name: str, profile_data: dict):
         """Saves a gauntlet-generated capability profile for a specific LLM."""
