@@ -474,8 +474,8 @@ python main.py
 ## Phase 22: 💬 The Interactive Interpreter
     **Goal:** Develop the conversational Q&A system that transforms a simple prompt into a detailed project brief.
     **Tasks:**
-        * [ ] **Task 22.1: Implement `idea_interpreter.py`:** Build the core class that will manage the conversational chain with the LLM.
-        * [ ] **Task 22.2: Design the Clarification Prompt Chain:** Create the series of "meta-prompts" that guide the LLM to ask intelligent follow-up questions about goals, tech stacks, and tone.
+        * [x] **Task 22.1: Implement `idea_interpreter.py`:** Build the core class that will manage the conversational chain with the LLM.
+        * [x] **Task 22.2: Design the Clarification Prompt Chain:** Create the series of "meta-prompts" that guide the LLM to ask intelligent follow-up questions about goals, tech stacks, and tone.
         * [ ] **Task 22.3: Build the "Genesis" UI (Interview Stage):** Create the initial UI in a new "Genesis" dashboard tab. It will have a text input for the initial idea and a chat-like interface to display the AI's clarifying questions and capture your answers.
 
 ---
@@ -503,3 +503,7 @@ python main.py
 
 ---
 ## Phase 26: (Placeholder for Future Ideas)
+
+duplicate code deection
+vibe button to press and modify readme and roadmap when things pop into coders mind
+sanity checker to make sure we are keeping to the readme and roadmap

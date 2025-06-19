@@ -30,6 +30,7 @@ from core.style_preference import StylePreferenceManager # Import StylePreferenc
 from core.genesis_logger import GenesisLogger # Import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
 from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
+from core.mini_readme_generator import MiniReadmeGenerator # 1. Add the new import at the top
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
@@ -105,11 +106,20 @@ def start_cli_loop():
                                  project_contextualizer=project_contextualizer_cli,
                                  style_preference_manager=style_manager_for_cli) # Pass style_manager
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
+    # 2. Instantiate the new generator
+    mini_readme_generator_cli = MiniReadmeGenerator(
+        llm_provider=cli_llm_provider,
+        style_manager=style_manager_for_cli,
+        user_profile=user_profile
+    )
+
     # Instantiate IdeaInterpreter
     idea_interpreter_cli = IdeaInterpreter(
         llm_provider=cli_llm_provider,
         user_profile=user_profile,
-        style_manager=style_manager_for_cli
+        memory=memory, # Added missing argument
+        style_manager=style_manager_for_cli,
+        project_contextualizer=project_contextualizer_cli # Added missing argument
     )
     proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not None else None
 
@@ -155,7 +165,7 @@ def start_cli_loop():
     register("help", handle_help, "Shows this help message.")
 
     # File Commands
-    # <<< UPDATED: 'write' command handler
+    # 3. The `handle_write` function will be replaced with this new version
     def handle_write(args):
         if not args:
             print("Usage: write <filepath>")
@@ -325,36 +335,6 @@ def start_cli_loop():
             print(f"❌ Failed to launch dashboard: {e}")
     register("dashboard", handle_dashboard, "Launches or focuses the web dashboard.")
 
-    # 3. Add the new command handler function in start_cli_loop()
-    def handle_watch(args):
-        start_watching()
-    register("watch", handle_watch, "Enters watch mode to provide proactive suggestions on file changes.")
-
-    # 4. Add the new command handler function and registration
-    # 2. Update the `handle_plan` function to save the plan
-    def handle_plan(args):
-        if not args:
-            print("Usage: plan \"<your high-level goal>\"")
-            return
-
-        goal = " ".join(args)
-        plan = agent.create_plan(goal)
-
-        print("\n--- Generated Plan ---")
-        if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
-            # <<< NEW: Save the plan to session memory
-            memory.remember('last_plan', plan)
-            for i, step in enumerate(plan, 1):
-                print(f"Step {i}: giblet {step}")
-            print("----------------------\n")
-            print("To run this plan, use the 'execute' command.")
-        elif isinstance(plan, list) and len(plan) > 0 :
-            print(plan[0]) # Print the failure message
-            print("----------------------\n")
-        else:
-            print("Failed to generate a plan or the plan was empty.")
-            print("----------------------\n")
-
     # <<< UPDATED: handle_execute with self-correction logic
     def handle_execute(args):
         plan = memory.recall('last_plan')
@@ -453,6 +433,36 @@ def start_cli_loop():
 
     register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")
     register("execute", handle_execute, "Executes the most recently created plan.")
+
+    # 3. Add the new command handler function in start_cli_loop()
+    def handle_watch(args):
+        start_watching()
+    register("watch", handle_watch, "Enters watch mode to provide proactive suggestions on file changes.")
+
+    # 4. Add the new command handler function and registration
+    # 2. Update the `handle_plan` function to save the plan
+    def handle_plan(args):
+        if not args:
+            print("Usage: plan \"<your high-level goal>\"")
+            return
+
+        goal = " ".join(args)
+        plan = agent.create_plan(goal)
+
+        print("\n--- Generated Plan ---")
+        if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
+            # <<< NEW: Save the plan to session memory
+            memory.remember('last_plan', plan)
+            for i, step in enumerate(plan, 1):
+                print(f"Step {i}: giblet {step}")
+            print("----------------------\n")
+            print("To run this plan, use the 'execute' command.")
+        elif isinstance(plan, list) and len(plan) > 0 :
+            print(plan[0]) # Print the failure message
+            print("----------------------\n")
+        else:
+            print("Failed to generate a plan or the plan was empty.")
+            print("----------------------\n")
 
     # User Profile Commands
     def handle_profile(args):
@@ -688,45 +698,6 @@ def start_cli_loop():
         except Exception as e:
             print(f"❌ Error generating suggestions: {e}")
             print("   Please ensure 'data/user_profile.json' is accessible and valid.")
-    register("learn suggestions", handle_learn_suggestions, "Provides proactive learning suggestions.")
-
-    register("skills", handle_skills, "Manages and lists available agent skills.")
-
-    # Helper function for suggesting and creating skills from patterns
-    def _proactively_suggest_skill_creation_from_patterns(analyzed_patterns):
-        if not analyzed_patterns:
-            return
-
-        # For proactive suggestion, maybe only consider the top pattern or a few
-        # For simplicity, let's work with the first (most frequent/longest) pattern
-        top_pattern_sequence, top_pattern_count = analyzed_patterns[0]
-
-        print(f"\n[Proactive Suggestion] I've noticed a recurring pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times).")
-        create_skill_q = input("Would you like to try creating a skill from this pattern? (y/n): ").lower()
-        
-        if create_skill_q == 'y':
-            chosen_sequence_list = list(top_pattern_sequence)
-            skill_name_suggestion = f"Auto{chosen_sequence_list[0].capitalize()}{chosen_sequence_list[1].capitalize() if len(chosen_sequence_list) > 1 else ''}Skill"
-            new_skill_name = input(f"Enter a name for the new skill (default: {skill_name_suggestion}): ") or skill_name_suggestion
-            trigger_phrase = input(f"Enter an optional trigger phrase for '{new_skill_name}' (e.g., \"perform my common task\"): ") or None
-            
-            generated_skill_code = agent.generate_skill_from_plan(chosen_sequence_list, new_skill_name, trigger_phrase)
-            print("\n--- Generated Skill Code ---")
-            print(generated_skill_code)
-            print("--------------------------\n")
-
-            confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
-            if confirm_save == 'y':
-                safe_skill_name_for_file = "".join(c if c.isalnum() else "_" for c in new_skill_name).lower()
-                skill_filename = f"{safe_skill_name_for_file}_skill.py"
-                relative_skill_path = SKILLS_DIR.relative_to(utils.WORKSPACE_DIR) / skill_filename
-                if utils.write_file(str(relative_skill_path), generated_skill_code):
-                    print(f"✅ Skill '{new_skill_name}' saved to {SKILLS_DIR / skill_filename}")
-                    skill_manager.refresh_skills()
-                else:
-                    print(f"❌ Failed to save skill '{new_skill_name}'.")
-            else:
-                print("Skill creation from pattern cancelled.")
 
     # History Command
     def handle_history(args):
@@ -755,8 +726,39 @@ def start_cli_loop():
                 for seq, count in patterns:
                     print(f"  - Sequence: {', '.join(seq)} (Occurred {count} times)")
                 print("-------------------------------------------------------------\n")
-                # Call the refactored suggestion logic
-                _proactively_suggest_skill_creation_from_patterns(patterns)
+
+                
+                # Offer to create a skill from the top pattern
+                if patterns:
+                    top_pattern_sequence, top_pattern_count = patterns[0]
+                    print(f"[Proactive Suggestion] Would you like to try creating a skill from the most frequent pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times)?")
+                    create_skill_q = input("Enter 'y' to create skill, or press Enter to skip: ").lower()
+                    
+                    if create_skill_q == 'y':
+                        chosen_sequence_list = list(top_pattern_sequence)
+                        skill_name_suggestion = f"Auto{chosen_sequence_list[0].capitalize()}{chosen_sequence_list[1].capitalize() if len(chosen_sequence_list) > 1 else ''}Skill"
+                        new_skill_name = input(f"Enter a name for the new skill (default: {skill_name_suggestion}): ") or skill_name_suggestion
+                        trigger_phrase = input(f"Enter an optional trigger phrase for '{new_skill_name}' (e.g., \"perform my common task\"): ") or None
+                        if trigger_phrase:
+                            trigger_phrase = trigger_phrase.strip('"').strip("'")
+
+                        generated_skill_code = agent.generate_skill_from_plan(chosen_sequence_list, new_skill_name, trigger_phrase)
+                        
+                        print("\n--- Generated Skill Code ---")
+                        print(generated_skill_code)
+                        print("--------------------------\n")
+
+                        confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
+                        if confirm_save == 'y':
+                            safe_skill_name_for_file = "".join(c if c.isalnum() else "_" for c in new_skill_name).lower()
+                            skill_filename = f"{safe_skill_name_for_file}_skill.py"
+                            relative_skill_path = SKILLS_DIR.relative_to(utils.WORKSPACE_DIR) / skill_filename
+                            if utils.write_file(str(relative_skill_path), generated_skill_code): # write_file expects relative path
+                                print(f"✅ Skill '{new_skill_name}' saved to {SKILLS_DIR / skill_filename}")
+                                skill_manager.refresh_skills() # Auto-refresh to load the new skill
+                            else:
+                                print(f"❌ Failed to save skill '{new_skill_name}'.")
+
             # Message if no patterns found is handled by analyze_command_history itself
 
     register("history", handle_history, "Views command history.")
@@ -812,7 +814,62 @@ def start_cli_loop():
             print("----------------------------------------------\n")
             print("Next steps in Genesis Mode will use this brief to generate documents and scaffold the project.")
     register("genesis", handle_genesis, "Manages Genesis Mode operations (e.g., logging project creation).")
-    plugin_manager.discover_plugins()
+    # This is the new handle_genesis function for ui/cli.py
+
+    def handle_genesis(args):
+        if not args or args[0].lower() not in ["start"]:
+            print("Usage: genesis start \"<your initial project idea>\"")
+            return
+
+        action = args[0].lower()
+        if action == "start":
+            if len(args) < 2:
+                print("Usage: genesis start \"<your initial project idea>\"")
+                return
+            
+            initial_idea = " ".join(args[1:])
+            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
+            
+            # 1. Start the session and get the first questions
+            questions = idea_interpreter_cli.start_interpretation_session(initial_idea)
+            
+            if not questions:
+                print("\n❌ Error: Could not start the interpretation session. The LLM might be unavailable.")
+                return
+
+            # 2. Present questions and get answers
+            print("\n🤖 The Giblet asks:\n")
+            print(questions)
+            
+            # Collect multi-line input for the answer
+            print("\n> Provide your answers below. Type 'EOF' or press Ctrl+D on a new line when you're done.")
+            user_answers_lines = []
+            while True:
+                try:
+                    line = input()
+                    if line.strip() == "EOF":
+                        break
+                    user_answers_lines.append(line)
+                except EOFError:
+                    break
+            user_answers = "\n".join(user_answers_lines)
+
+            if not user_answers.strip():
+                print("\n❌ No answer provided. Aborting Genesis session.")
+                return
+
+            # 3. Submit answers and get the final brief
+            print("\nAnalysing your answers and synthesizing the project brief...")
+            result = idea_interpreter_cli.submit_answer_and_continue(user_answers)
+
+            if result.get("status") == "complete":
+                print("\n--- ✅ Genesis Complete: Synthesized Project Brief ---")
+                print(json.dumps(result.get("data", {}), indent=2))
+                print("----------------------------------------------------\n")
+                print("Next steps: Use this brief to generate a README, create a roadmap, and scaffold the project files.")
+            else:
+                print(f"\n❌ An error occurred during synthesis: {result.get('message', 'Unknown error.')}")
+    register("genesis", handle_genesis, "Starts the Genesis Mode idea interpretation.")
 
     # --- Just-in-Time Proactive Suggestions Function ---
     def display_just_in_time_suggestions(last_command_name: str | None, last_args: list | None = None):
@@ -838,6 +895,7 @@ def start_cli_loop():
             jit_suggestions.append("💡 Quick Tip: Generated a function? Consider writing tests with `generate tests <filepath>` or refactoring with `refactor <filepath> \"instruction\"`.")
 
         elif last_command_name == "plan":
+
             if memory.recall('last_plan'): # Check if a plan was successfully created
                 jit_suggestions.append("💡 Quick Tip: Plan created! Use `execute` to run it.")
 
@@ -920,7 +978,32 @@ def start_cli_loop():
             if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
                 patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
                 if patterns:
-                    _proactively_suggest_skill_creation_from_patterns(patterns)
+                    # Inline logic for proactively suggesting skill creation from patterns
+                    if patterns:
+                        top_pattern_sequence, top_pattern_count = patterns[0]
+                        print(f"[Proactive Suggestion] Would you like to try creating a skill from the most frequent pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times)?")
+                        create_skill_q = input("Enter 'y' to create skill, or press Enter to skip: ").lower()
+                        if create_skill_q == 'y':
+                            chosen_sequence_list = list(top_pattern_sequence)
+                            skill_name_suggestion = f"Auto{chosen_sequence_list[0].capitalize()}{chosen_sequence_list[1].capitalize() if len(chosen_sequence_list) > 1 else ''}Skill"
+                            new_skill_name = input(f"Enter a name for the new skill (default: {skill_name_suggestion}): ") or skill_name_suggestion
+                            trigger_phrase = input(f"Enter an optional trigger phrase for '{new_skill_name}' (e.g., \"perform my common task\"): ") or None
+                            if trigger_phrase:
+                                trigger_phrase = trigger_phrase.strip('\"').strip("'")
+                            generated_skill_code = agent.generate_skill_from_plan(chosen_sequence_list, new_skill_name, trigger_phrase)
+                            print("\n--- Generated Skill Code ---")
+                            print(generated_skill_code)
+                            print("--------------------------\n")
+                            confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
+                            if confirm_save == 'y':
+                                safe_skill_name_for_file = "".join(c if c.isalnum() else "_" for c in new_skill_name).lower()
+                                skill_filename = f"{safe_skill_name_for_file}_skill.py"
+                                relative_skill_path = SKILLS_DIR.relative_to(utils.WORKSPACE_DIR) / skill_filename
+                                if utils.write_file(str(relative_skill_path), generated_skill_code):
+                                    print(f"✅ Skill '{new_skill_name}' saved to {SKILLS_DIR / skill_filename}")
+                                    skill_manager.refresh_skills()
+                                else:
+                                    print(f"❌ Failed to save skill '{new_skill_name}'.")
             
             # Just-in-Time general suggestions
             if command_execution_count % JIT_SUGGESTION_THRESHOLD == 0:

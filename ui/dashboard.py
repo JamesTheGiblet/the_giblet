@@ -181,7 +181,9 @@ def main():
     idea_interpreter_dashboard = IdeaInterpreter(
         llm_provider=dashboard_llm_provider,
         user_profile=user_profile_instance,
-        style_manager=style_manager_for_dashboard
+        memory=memory_instance, # Added missing argument
+        style_manager=style_manager_for_dashboard,
+        project_contextualizer=project_contextualizer_dashboard # Added missing argument
     )
     
     # Instantiate ProactiveLearner for JIT suggestions using the live UserProfile
@@ -227,31 +229,68 @@ def main():
     # --- Tab Content ---
     # The content display logic remains the same, using if/elif based on st.session_state.active_tab
     if st.session_state.active_tab == "🧬 Genesis Mode":
-        st.header("🧬 Project Genesis Mode")
+        st.header("🧬 Project Genesis Mode - Idea Interview")
         st.write("""
             Start a new project from scratch! Provide an initial idea, and The Giblet's
-            Idea Interpreter will help refine it into a detailed project brief.
-            (Currently, this uses placeholder logic for the interactive Q&A).
+            Idea Interpreter will engage in a Q&A to refine it into a detailed project brief.
         """)
 
-        initial_idea = st.text_area("Enter your initial project idea:", height=100, key="genesis_initial_idea",
-                                    help="e.g., 'A mobile app to identify plants using the phone camera.'")
+        # Initialize session state for conversation
+        if 'genesis_conversation' not in st.session_state:
+            st.session_state.genesis_conversation = []
+        if 'genesis_session_active' not in st.session_state:
+            st.session_state.genesis_session_active = False
+        if 'genesis_final_brief' not in st.session_state:
+            st.session_state.genesis_final_brief = None
 
-        if st.button("🚀 Start Genesis Interpretation", key="start_genesis_btn"):
-            if not initial_idea.strip():
-                st.warning("Please enter an initial idea to start Genesis Mode.")
-            else:
-                with st.spinner("Interpreter is thinking..."):
-                    try:
-                        # Use the dashboard's IdeaInterpreter instance
-                        clarified_brief = idea_interpreter_dashboard.interpret_idea(initial_idea)
-                        st.session_state.clarified_brief_genesis = clarified_brief # Store in session state
-                    except Exception as e_genesis_interp:
-                        st.error(f"Error during idea interpretation: {sanitize_for_display(str(e_genesis_interp))}")
-        
-        if 'clarified_brief_genesis' in st.session_state and st.session_state.clarified_brief_genesis:
-            st.subheader("Interpreted Project Brief (Initial Pass):")
-            st.json(st.session_state.clarified_brief_genesis)
+        # Display conversation history
+        for message in st.session_state.genesis_conversation:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if not st.session_state.genesis_session_active and not st.session_state.genesis_final_brief:
+            initial_idea_input = st.text_area("Enter your initial project idea to begin:", height=100, key="genesis_initial_idea_input",
+                                        help="e.g., 'A mobile app to identify plants using the phone camera.'")
+            if st.button("🚀 Start Interpretation", key="start_genesis_interpretation_btn"):
+                if initial_idea_input.strip():
+                    with st.spinner("Interpreter is preparing questions..."):
+                        questions = idea_interpreter_dashboard.start_interpretation_session(initial_idea_input)
+                        if questions:
+                            st.session_state.genesis_conversation.append({"role": "user", "content": f"My idea: {initial_idea_input}"}) # Log user's idea
+                            st.session_state.genesis_conversation.append({"role": "assistant", "content": questions})
+                            st.session_state.genesis_session_active = True
+                            st.rerun()
+                        else:
+                            st.error("Failed to start interpretation session. LLM might be unavailable.")
+                else:
+                    st.warning("Please enter an initial idea.")
+
+        if st.session_state.genesis_session_active:
+            user_answer = st.chat_input("Your answer:", key="genesis_user_answer")
+            if user_answer:
+                st.session_state.genesis_conversation.append({"role": "user", "content": user_answer})
+                with st.spinner("Interpreter is processing your answer..."):
+                    response = idea_interpreter_dashboard.submit_answer_and_continue(user_answer)
+                    if response["status"] == "complete" and response["type"] == "brief":
+                        st.session_state.genesis_conversation.append({"role": "assistant", "content": "Great! I've synthesized a project brief based on our conversation."})
+                        st.session_state.genesis_final_brief = response["data"]
+                        st.session_state.genesis_session_active = False
+                    elif response["status"] == "in_progress" and response["type"] == "questions":
+                        st.session_state.genesis_conversation.append({"role": "assistant", "content": response["data"]})
+                    elif response["status"] == "error":
+                        st.error(f"An error occurred: {response.get('message', 'Unknown error')}")
+                        st.session_state.genesis_session_active = False # End session on error
+                st.rerun()
+
+        if st.session_state.genesis_final_brief:
+            st.subheader("📝 Final Project Brief")
+            st.json(st.session_state.genesis_final_brief)
+            if st.button("Start New Genesis Session", key="restart_genesis_btn"):
+                st.session_state.genesis_conversation = []
+                st.session_state.genesis_session_active = False
+                st.session_state.genesis_final_brief = None
+                st.rerun()
+
     elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("Project Roadmap")
         try:
