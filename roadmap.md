@@ -476,7 +476,7 @@ python main.py
     **Tasks:**
         * [x] **Task 22.1: Implement `idea_interpreter.py`:** Build the core class that will manage the conversational chain with the LLM.
         * [x] **Task 22.2: Design the Clarification Prompt Chain:** Create the series of "meta-prompts" that guide the LLM to ask intelligent follow-up questions about goals, tech stacks, and tone.
-        * [ ] **Task 22.3: Build the "Genesis" UI (Interview Stage):** Create the initial UI in a new "Genesis" dashboard tab. It will have a text input for the initial idea and a chat-like interface to display the AI's clarifying questions and capture your answers.
+        * [x] **Task 22.3: Build the "Genesis" UI (Interview Stage):** Create the initial UI in a new "Genesis" dashboard tab. It will have a text input for the initial idea and a chat-like interface to display the AI's clarifying questions and capture your answers.
 
 ---
 ## Phase 23: 📜 The Adaptive Generators
@@ -502,8 +502,24 @@ python main.py
         * [ ] **Task 25.2: Implement `vibe_engine.py` (Post-Genesis):** Create the initial version of this engine. After a project is scaffolded, it will proactively suggest the first logical `giblet` command (e.g., "Project created. Would you like to focus on the first task in the roadmap?").
 
 ---
-## Phase 26: (Placeholder for Future Ideas)
+## Phase 26: 🧪 The Experimental Playground
 
-duplicate code deection
-vibe button to press and modify readme and roadmap when things pop into coders mind
-sanity checker to make sure we are keeping to the readme and roadmap
+    **Goal:** Explore and integrate advanced, experimental features that enhance creativity, maintain project coherence, and support spontaneous workflow improvements.
+
+    **Tasks:**
+        * [ ] **Task 26.1: Implement Duplicate Code Detection**
+        * Develop a module that scans the codebase for duplicate or highly similar code blocks.
+        * Integrate with the CLI and dashboard to highlight potential duplications and suggest refactoring opportunities.
+        * Optionally, provide automated refactoring or snippet extraction for repeated patterns.
+
+    * [ ] **Task 26.2: Add "Vibe Button" for Spontaneous Updates**
+        * Create a UI element ("Vibe Button") in the dashboard and CLI that allows users to instantly capture new ideas or changes as they arise.
+        * When pressed, prompt the user for a quick note or idea, then automatically update the `README.md` and `roadmap.md` with the new information or tasks.
+        * Maintain a log of vibe-driven changes for future review and refinement.
+
+    * [ ] **Task 26.3: Develop a Sanity Checker for Project Alignment**
+        * Build a "sanity checker" module that periodically reviews the codebase, `README.md`, and `roadmap.md` for alignment.
+        * Detect and flag discrepancies between documented plans and actual implementation (e.g., missing features, outdated docs).
+        * Provide actionable suggestions to bring the project back in sync with its stated goals and roadmap.
+
+---

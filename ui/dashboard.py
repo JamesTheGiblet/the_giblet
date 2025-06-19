@@ -39,6 +39,15 @@ def main():
     if 'agent_execution_result' not in st.session_state:
         st.session_state.agent_execution_result = None
     # Add other session state initializations as needed...
+    # For Genesis Mode
+    if 'genesis_conversation' not in st.session_state:
+        st.session_state.genesis_conversation = []
+    if 'genesis_session_active' not in st.session_state:
+        st.session_state.genesis_session_active = False
+    if 'genesis_final_brief' not in st.session_state:
+        st.session_state.genesis_final_brief = None
+    if 'generated_readme' not in st.session_state: # For README generation
+        st.session_state.generated_readme = None
 
     # --- Sidebar ---
     with st.sidebar:
@@ -54,16 +63,136 @@ def main():
 
     # --- Tab Content ---
     if st.session_state.active_tab == "🧬 Genesis Mode":
-        # This section remains largely the same as your excellent implementation
         st.header("🧬 Project Genesis Mode - Idea Interview")
-        # (Your existing Genesis Mode UI code goes here)
+        st.write("""
+            Start a new project from scratch! Provide an initial idea, and The Giblet's
+            Idea Interpreter will engage in a Q&A to refine it into a detailed project brief.
+        """)
+
+        # Display conversation history
+        for message in st.session_state.genesis_conversation:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if not st.session_state.genesis_session_active and not st.session_state.genesis_final_brief:
+            initial_idea_input = st.text_area("Enter your initial project idea to begin:", height=100, key="genesis_initial_idea_input",
+                                        help="e.g., 'A mobile app to identify plants using the phone camera.'")
+            if st.button("🚀 Start Interpretation", key="start_genesis_interpretation_btn"):
+                if initial_idea_input.strip():
+                    with st.spinner("Interpreter is preparing questions..."):
+                        # This would now be an API call
+                        try:
+                            response = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": initial_idea_input}, timeout=60)
+                            response.raise_for_status()
+                            data = response.json()
+                            if data.get("error"):
+                                st.error(f"Failed to start interpretation: {data['error']}")
+                            else:
+                                questions = data.get("questions")
+                                st.session_state.genesis_conversation.append({"role": "user", "content": f"My idea: {initial_idea_input}"})
+                                st.session_state.genesis_conversation.append({"role": "assistant", "content": questions})
+                                st.session_state.genesis_session_active = True
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"API Request Failed (Genesis Start): {e}")
+                else:
+                    st.warning("Please enter an initial idea.")
+
+        if st.session_state.genesis_session_active:
+            user_answer = st.chat_input("Your answer:", key="genesis_user_answer")
+            if user_answer:
+                st.session_state.genesis_conversation.append({"role": "user", "content": user_answer})
+                with st.spinner("Interpreter is processing your answer..."):
+                    try:
+                        # This would now be an API call
+                        response = httpx.post("http://localhost:8000/genesis/answer", json={"answer": user_answer}, timeout=120)
+                        response.raise_for_status()
+                        data = response.json()
+
+                        if data.get("status") == "complete":
+                            st.session_state.genesis_conversation.append({"role": "assistant", "content": "Great! I've synthesized a project brief based on our conversation."})
+                            st.session_state.genesis_final_brief = data.get("data")
+                            st.session_state.genesis_session_active = False
+                        elif data.get("status") == "in_progress":
+                            st.session_state.genesis_conversation.append({"role": "assistant", "content": data.get("data")})
+                        elif data.get("status") == "error":
+                            st.error(f"An error occurred: {data.get('message', 'Unknown error')}")
+                            st.session_state.genesis_session_active = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"API Request Failed (Genesis Answer): {e}")
+                        st.session_state.genesis_session_active = False # End session on error
+                        st.rerun()
+
+
+        if st.session_state.genesis_final_brief:
+            st.subheader("📝 Final Project Brief")
+            st.json(st.session_state.genesis_final_brief)
+
+            # --- NEW README GENERATION UI ---
+            if 'generated_readme' not in st.session_state:
+                st.session_state.generated_readme = None
+
+            if st.button("Generate Project README", key="generate_project_readme_btn"):
+                with st.spinner("Generating style-aware README..."):
+                    try:
+                        payload = {"project_brief": st.session_state.genesis_final_brief}
+                        response = httpx.post("http://localhost:8000/generate/readme", json=payload, timeout=120)
+                        response.raise_for_status()
+                        st.session_state.generated_readme = response.json().get("readme_content")
+                    except Exception as e:
+                        st.error(f"Failed to generate README: {e}")
+
+            if st.session_state.generated_readme:
+                with st.expander("Generated README.md", expanded=True):
+                    st.markdown(st.session_state.generated_readme)
+                    # Add a button to save the README to a file
+                    if st.button("Save README.md to disk", key="save_readme_disk_btn"):
+                         with st.spinner("Saving..."):
+                            try:
+                                write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
+                                write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                write_response.raise_for_status()
+                                st.success("✅ README.md saved successfully!")
+                            except Exception as e:
+                                st.error(f"Failed to save README.md: {e}")
+            # --- END NEW UI ---
+
+            if st.button("Start New Genesis Session", key="restart_genesis_btn"):
+                st.session_state.genesis_conversation = []
+                st.session_state.genesis_session_active = False
+                st.session_state.genesis_final_brief = None
+                st.session_state.generated_readme = None # Clear readme on restart
+                st.rerun()
 
     elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("🗺️ Project Roadmap")
         try:
             response = httpx.get("http://localhost:8000/roadmap", timeout=10)
             response.raise_for_status()
-            # (Your existing roadmap display code goes here)
+            data = response.json()
+            tasks = data.get("roadmap", [])
+
+            if not tasks:
+                st.warning("No tasks found in roadmap.md")
+            else:
+                phases = {}
+                current_phase = "General Tasks"
+                for task in tasks:
+                    if 'Phase' in task['description'] or task['description'].lower().startswith("phase "):
+                        current_phase = task['description']
+                        if current_phase not in phases:
+                            phases[current_phase] = []
+                    else:
+                        if current_phase not in phases: # Should be initialized
+                            phases[current_phase] = []
+                        phases[current_phase].append(task)
+
+                for phase_name, phase_tasks in phases.items():
+                    with st.expander(f"**{phase_name}**", expanded=True):
+                        for task_item in phase_tasks:
+                            is_complete = (task_item['status'] == 'complete')
+                            st.checkbox(task_item['description'], value=is_complete, disabled=True, key=f"task_{phase_name}_{task_item['description'][:20]}")
         except Exception as e:
             st.error(f"Could not load roadmap. Is the API server running? Error: {e}")
 
@@ -160,6 +289,8 @@ def main():
 
         except httpx.RequestError as e:
             st.error(f"Could not load file explorer. Is the API running? Error: {e}")
+        except Exception as e: # Catch other potential errors like JSONDecodeError
+            st.error(f"An unexpected error occurred in File Explorer: {e}")
 
     elif st.session_state.active_tab == "🤖 Automation":
         st.header("Project Automation")

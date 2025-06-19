@@ -23,6 +23,7 @@ from core.skill_manager import SkillManager # New import
 from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
+from core.readme_generator import ReadmeGenerator # Add near the top with other core imports
 
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
@@ -95,6 +96,12 @@ idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance,
                                      llm_provider=api_llm_provider,
                                      project_contextualizer=project_contextualizer_api,
                                      style_preference_manager=style_manager_for_api) # Pass StylePreferenceManager
+# Instantiate the ReadmeGenerator for the API
+readme_generator_for_api = ReadmeGenerator(
+    llm_provider=api_llm_provider,
+    style_manager=style_manager_for_api
+)
+
 code_generator = CodeGenerator(user_profile=user_profile_instance, memory_system=memory, llm_provider=api_llm_provider, project_contextualizer=project_contextualizer_api)
 skill_manager_for_api = SkillManager(user_profile=user_profile_instance, memory=memory, command_manager_instance=command_manager_for_api)
 agent_instance = agent.Agent(idea_synth=idea_synth_for_api, code_generator=code_generator, skill_manager=skill_manager_for_api) 
@@ -162,6 +169,14 @@ class SetFocusRequest(BaseModel):
 class FocusResponse(BaseModel):
     current_focus: str | None = None
     message: str
+
+# Define request/response models for the new endpoint
+class GenerateReadmeRequest(BaseModel):
+    project_brief: dict[str, Any]
+
+class GenerateReadmeResponse(BaseModel):
+    readme_content: str
+
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -305,6 +320,22 @@ def set_focus_endpoint(request: SetFocusRequest):
     else:
         memory.remember("current_focus", request.focus_text)
         return FocusResponse(current_focus=request.focus_text, message=f"Focus set to: {request.focus_text}")
+
+
+# ... add with other endpoints ...
+
+@app.post("/generate/readme", response_model=GenerateReadmeResponse)
+def generate_readme_endpoint(request: GenerateReadmeRequest):
+    """Generates a project README from a project brief."""
+    if not request.project_brief:
+        raise HTTPException(status_code=400, detail="Project brief cannot be empty.")
+    
+    content = readme_generator_for_api.generate(request.project_brief)
+    
+    if "Failed" in content or "Error" in content:
+        raise HTTPException(status_code=500, detail=content)
+        
+    return GenerateReadmeResponse(readme_content=content)
 
 
 
