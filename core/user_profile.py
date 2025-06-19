@@ -1,6 +1,8 @@
 # core/user_profile.py
 from core.memory import Memory
+from pathlib import Path # Make sure this is imported
 from datetime import datetime # Import datetime
+from typing import Optional # Ensure Optional is imported
 
 PROFILE_MEMORY_KEY = "user_profile_data_v1" # Added a version to the key
 
@@ -35,13 +37,20 @@ DEFAULT_PROFILE_STRUCTURE = {
 }
 
 class UserProfile:
-    def __init__(self, memory_system: Memory):
+    def __init__(self, memory_system: Memory, file_path: Optional[Path] = None):
         """
         Initializes the UserProfile, loading data from the memory system.
+        Optionally, a specific file_path can be associated with this profile instance.
         """
         self.memory = memory_system
-        retrieved_data = self.memory.retrieve(PROFILE_MEMORY_KEY)
+        
+        if file_path:
+            self.file_path = file_path
+        else:
+            # Default path if no specific file_path is provided for this instance
+            self.file_path = Path(__file__).parent.parent / "data" / "user_profile.json"
 
+        retrieved_data = self.memory.retrieve(PROFILE_MEMORY_KEY)
         # Check if the retrieved data is not a dictionary (e.g., it's the default "not found" string)
         if not isinstance(retrieved_data, dict):
             self.data = DEFAULT_PROFILE_STRUCTURE.copy() # Initialize with default structure
