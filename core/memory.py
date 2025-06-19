@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Optional
 
 try:
     import redis
@@ -10,16 +11,22 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 class Memory:
-    def __init__(self):
+    def __init__(self, file_path: Optional[Path] = None, checkpoint_directory: Optional[Path] = None):
         """
         Initializes the Memory module, connecting to Redis if configured,
         otherwise falling back to local JSON files.
         """
         self.backend_type = os.getenv("GIBLET_MEMORY_BACKEND", "json").lower()
+        
+        # Store provided paths or fall back to defaults
+        self._long_term_memory_file_path = file_path
+        self._checkpoint_directory = checkpoint_directory
         self.redis_client = None
 
         # --- Session Memory (volatile) ---
         self.session_memory = {}
+        # --- Cache for JSON-based long-term memory ---
+        self._long_term_data_cache = {}
 
         # --- Long-Term Memory (persistent) ---
         if self.backend_type == "redis" and REDIS_AVAILABLE:
@@ -34,24 +41,29 @@ class Memory:
                 self.backend_type = "json"
 
         if self.backend_type == "json":
-            self.long_term_memory_path = Path(__file__).parent.parent / "data/memory.json"
+            if self._long_term_memory_file_path is None:
+                self._long_term_memory_file_path = Path(__file__).parent.parent / "data/memory.json"
+            self.long_term_memory_path = self._long_term_memory_file_path
             self.long_term_memory_path.touch(exist_ok=True)
             print("🧠 Memory module initialized with local JSON backend.")
 
-        self.load_from_disk()
+        self._load_long_term_data()
 
-    def load_from_disk(self):
+    def _load_long_term_data(self):
         """Loads the long-term memory from the configured backend."""
         if self.redis_client:
             # In Redis, data is "live", but we can log that we're ready.
             print("   (Redis backend is live, no initial load needed)")
         else: # JSON backend
             try:
+                # Load into the dedicated cache, not session_memory
                 content = self.long_term_memory_path.read_text(encoding='utf-8')
                 if content:
-                    self.session_memory.update(json.loads(content))
+                    self._long_term_data_cache.update(json.loads(content))
+                    print(f"   (JSON long-term data loaded into cache from {self.long_term_memory_path.name})")
             except (json.JSONDecodeError, FileNotFoundError):
-                self.session_memory.update({})
+                self._long_term_data_cache.update({}) # Initialize cache if file is empty/missing/corrupt
+                print(f"   (JSON long-term data cache initialized as empty; file issue or new setup for {self.long_term_memory_path.name})")
 
     def remember(self, key: str, value):
         """Saves a key-value pair to the current session's memory."""
@@ -71,27 +83,28 @@ class Memory:
             self.redis_client.hset(self.long_term_memory_key, key, json.dumps(value))
             print(f"✅ Committed '{key}' to Redis.")
         else: # JSON backend
-            # For JSON, 'commit' just saves the whole session
-            self.save_to_disk()
+            # Update the long-term cache and then save it
+            self._long_term_data_cache[key] = value
+            self._save_long_term_data()
             print(f"✅ Committed '{key}' to {self.long_term_memory_path.name}.")
 
     def retrieve(self, key: str):
         """Retrieves a specific value directly from long-term memory."""
         if self.redis_client:
             value = self.redis_client.hget(self.long_term_memory_key, key)
-            return json.loads(value) if value else None
+            # Return a more consistent "not found" message if key doesn't exist
+            return json.loads(value) if value is not None else f"I don't have a memory for '{key}' in Redis."
         else: # JSON backend
-            # For JSON, long-term is the same as session for this simple model
-            return self.recall(key)
+            return self._long_term_data_cache.get(key, f"I don't have a memory for '{key}' in JSON cache.")
 
-    def save_to_disk(self):
-        """Saves the entire session memory to the long-term backend (for JSON)."""
+    def _save_long_term_data(self):
+        """Saves the _long_term_data_cache to the long-term backend (for JSON)."""
         if self.redis_client:
             # In Redis, 'commit' saves individual keys, this can be a no-op or save all session keys.
             # For simplicity, we'll let `commit` handle Redis persistence.
             pass
         else: # JSON backend
-            content = json.dumps(self.session_memory, indent=2)
+            content = json.dumps(self._long_term_data_cache, indent=2)
             self.long_term_memory_path.write_text(content, encoding='utf-8')
 
     def save_checkpoint(self, name: str) -> bool:
@@ -116,7 +129,9 @@ class Memory:
                 return False
 
         # Fallback to file-based checkpoints
-        checkpoint_dir = Path(__file__).parent.parent / "data/checkpoints"
+        if self._checkpoint_directory is None:
+            self._checkpoint_directory = Path(__file__).parent.parent / "data/checkpoints"
+        checkpoint_dir = self._checkpoint_directory
         checkpoint_dir.mkdir(exist_ok=True)
         checkpoint_file = checkpoint_dir / f"{name}.vibe"
 
@@ -151,7 +166,9 @@ class Memory:
                 return False
 
         # Fallback to file-based checkpoints
-        checkpoint_file = Path(__file__).parent.parent / f"data/checkpoints/{name}.vibe"
+        if self._checkpoint_directory is None:
+            self._checkpoint_directory = Path(__file__).parent.parent / "data/checkpoints"
+        checkpoint_file = self._checkpoint_directory / f"{name}.vibe"
         if not checkpoint_file.exists():
             print(f"❌ Local checkpoint '{name}' not found.")
             return False
