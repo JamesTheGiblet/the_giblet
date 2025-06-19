@@ -483,7 +483,7 @@ python main.py
     **Goal:** Build the engines that generate the core project documents, making them aware of your learned style preferences.
     **Tasks:**
         * [x] **Task 23.1: Implement Style-Aware README Generation:** Enhance the `code_gen` or a new `doc_gen` module to take the project brief and the data from `style_preference.py` to generate a `README.md` that matches your preferred style.
-        * [ ] **Task 23.2: Implement Style-Aware Roadmap Generation:** Create the `roadmap_generator.py` module. Its primary function will be to use the project brief and style preferences to generate a `roadmap.md` file that is compatible with our existing `RoadmapManager`.
+        * [x] **Task 23.2: Implement Style-Aware Roadmap Generation:** Create the `roadmap_generator.py` module. Its primary function will be to use the project brief and style preferences to generate a `roadmap.md` file that is compatible with our existing `RoadmapManager`.
         * [🚧] **Task 23.3: Implement the "Reflective Prompts" UI:** After a README and roadmap are generated, update the UI to ask the user "Would you like to save this format as your default?" and trigger the update in `style_preference.json`.
 
 ---

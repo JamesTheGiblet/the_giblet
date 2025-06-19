@@ -190,6 +190,22 @@ class GenerateRoadmapRequest(BaseModel):
 class GenerateRoadmapResponse(BaseModel):
     roadmap_content: str
 
+# Add with other Pydantic models
+class StyleUpdateRequest(BaseModel):
+    category: str
+    settings: dict[str, Any]
+
+class StyleUpdateResponse(BaseModel):
+    message: str
+    updated_preferences: dict[str, Any]
+# Add with other Pydantic models
+class StyleUpdateRequest(BaseModel):
+    category: str
+    settings: dict[str, Any]
+
+class StyleUpdateResponse(BaseModel):
+    message: str
+    updated_preferences: dict[str, Any]
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -365,6 +381,23 @@ def generate_roadmap_endpoint(request: GenerateRoadmapRequest):
         raise HTTPException(status_code=500, detail=content)
         
     return GenerateRoadmapResponse(roadmap_content=content)
+
+# Add with other endpoints
+@app.post("/style/set_preferences", response_model=StyleUpdateResponse)
+def set_style_preferences_endpoint(request: StyleUpdateRequest):
+    """Sets a whole category of style preferences at once."""
+    try:
+        # Note: The StylePreferenceManager class handles the dot-notation logic.
+        style_manager_for_api.set_preferences_for_category(request.category, request.settings)
+        
+        updated_prefs = style_manager_for_api.get_all_preferences()
+        return StyleUpdateResponse(
+            message=f"'{request.category}' style preferences updated successfully.",
+            updated_preferences=updated_prefs
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # --- Skill API Endpoints ---

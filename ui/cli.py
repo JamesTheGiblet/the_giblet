@@ -31,7 +31,8 @@ from core.genesis_logger import GenesisLogger # Import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
 from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
 from core.mini_readme_generator import MiniReadmeGenerator # 1. Add the new import at the top
-from core.readme_generator import ReadmeGenerator # <<< 1. IMPORT THE NEW GENERATOR
+from core.readme_generator import ReadmeGenerator 
+from core.roadmap_generator import RoadmapGenerator # <<< 1. IMPORT
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
@@ -107,13 +108,22 @@ def start_cli_loop():
                                  project_contextualizer=project_contextualizer_cli,
                                  style_preference_manager=style_manager_for_cli)
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
-    # <<< 2. INSTANTIATE BOTH GENERATORS
     mini_readme_generator_cli = MiniReadmeGenerator(
         llm_provider=cli_llm_provider,
         style_manager=style_manager_for_cli,
         user_profile=user_profile
     )
+    # <<< 2. INSTANTIATE THE ROADMAP GENERATOR
     readme_generator_cli = ReadmeGenerator(
+        llm_provider=cli_llm_provider,
+        style_manager=style_manager_for_cli
+    )
+    readme_generator_cli = ReadmeGenerator(
+        llm_provider=cli_llm_provider,
+        style_manager=style_manager_for_cli
+    )
+    # Instantiate RoadmapGenerator for Genesis Mode document generation
+    roadmap_generator_cli = RoadmapGenerator(
         llm_provider=cli_llm_provider,
         style_manager=style_manager_for_cli
     )
@@ -820,61 +830,135 @@ def start_cli_loop():
             print("Next steps in Genesis Mode will use this brief to generate documents and scaffold the project.")
     register("genesis", handle_genesis, "Manages Genesis Mode operations (e.g., logging project creation).")
     # This is the new handle_genesis function for ui/cli.py
-
     def handle_genesis(args):
-        if not args or args[0].lower() not in ["start"]:
-            print("Usage: genesis start \"<your initial project idea>\"")
+        if not args or args[0].lower() not in ["start", "generate-readme", "generate-roadmap"]:
+            print("Usage: genesis <start|generate-readme|generate-roadmap>")
+            print("  log <name> \"<brief>\"   - (Dev) Log a manual project creation.") # Kept from previous context if relevant
+            print("  start \"<idea>\"           - Begin the interactive idea interpretation.")
+            print("  generate-readme          - Generate a README.md from the last session.")
+            print("  generate-roadmap         - Generate a roadmap.md from the last session.")
             return
 
         action = args[0].lower()
         if action == "start":
+            # This 'start' logic is from your existing file context
             if len(args) < 2:
                 print("Usage: genesis start \"<your initial project idea>\"")
                 return
-            
+
             initial_idea = " ".join(args[1:])
             print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
-            
-            # 1. Start the session and get the first questions
+
             questions = idea_interpreter_cli.start_interpretation_session(initial_idea)
-            
             if not questions:
                 print("\n❌ Error: Could not start the interpretation session. The LLM might be unavailable.")
                 return
 
-            # 2. Present questions and get answers
             print("\n🤖 The Giblet asks:\n")
             print(questions)
-            
-            # Collect multi-line input for the answer
             print("\n> Provide your answers below. Type 'EOF' or press Ctrl+D on a new line when you're done.")
             user_answers_lines = []
             while True:
                 try:
                     line = input()
-                    if line.strip() == "EOF":
+                    if line.strip().upper() == "EOF":
                         break
                     user_answers_lines.append(line)
                 except EOFError:
                     break
             user_answers = "\n".join(user_answers_lines)
-
             if not user_answers.strip():
                 print("\n❌ No answer provided. Aborting Genesis session.")
                 return
 
-            # 3. Submit answers and get the final brief
             print("\nAnalysing your answers and synthesizing the project brief...")
             result = idea_interpreter_cli.submit_answer_and_continue(user_answers)
-
             if result.get("status") == "complete":
+                final_brief = result.get("data", {})
+                memory.remember("last_genesis_brief", final_brief)
                 print("\n--- ✅ Genesis Complete: Synthesized Project Brief ---")
-                print(json.dumps(result.get("data", {}), indent=2))
+                print(json.dumps(final_brief, indent=2))
                 print("----------------------------------------------------\n")
-                print("Next steps: Use this brief to generate a README, create a roadmap, and scaffold the project files.")
+                print("Next steps: Use `genesis generate-readme` or `genesis generate-roadmap`.")
             else:
                 print(f"\n❌ An error occurred during synthesis: {result.get('message', 'Unknown error.')}")
-    register("genesis", handle_genesis, "Starts the Genesis Mode idea interpretation.")
+        
+        elif action == "generate-readme":
+            print("\nGenerating Project README...")
+            last_brief = memory.recall("last_genesis_brief")
+            if not isinstance(last_brief, dict) or not last_brief: # Check if it's a dict and not empty
+                print("❌ No project brief found in memory. Please run `genesis start` first.")
+                return
+            
+            # Get the style settings that will be used for generation
+            # Ensure style_manager_for_cli is accessible here (it is, from start_cli_loop scope)
+            current_readme_style_settings = style_manager_for_cli.get_style().get('readme', {})
+            
+            readme_content = readme_generator_cli.generate(last_brief)
+            print("\n--- Generated README.md ---\n")
+            print(readme_content)
+            print("\n---------------------------\n")
+
+            # --- REFLECTIVE PROMPT ---
+            if current_readme_style_settings: # Only ask if there are settings to save
+                save_style_confirm = input("Save this README style as your default? (y/n): ").lower()
+                if save_style_confirm == 'y':
+                    try:
+                        payload = {"category": "readme", "settings": current_readme_style_settings}
+                        # Ensure httpx is imported and accessible
+                        response = httpx.post("http://localhost:8000/style/set_preferences", json=payload, timeout=10)
+                        response.raise_for_status()
+                        print("✅ README style preferences saved as default!")
+                    except Exception as e:
+                        print(f"❌ Failed to save style preferences: {e}")
+            else:
+                print("ℹ️ No specific README style settings were actively used for this generation to save as default.")
+            
+            save_file_confirm = input("Save this content to README.md? (y/n): ").lower()
+            if save_file_confirm == 'y':
+                if utils.write_file("README.md", readme_content): # Ensure utils is accessible
+                    print("✅ README.md saved successfully!")
+                else:
+                    print("❌ Failed to save README.md.")
+            else:
+                print("Save to file cancelled.")
+
+        elif action == "generate-roadmap":
+            # (This subcommand would be updated with similar reflective logic)
+            # This 'generate-roadmap' logic is from your existing file context
+            if len(args) < 2:
+                print("Usage: genesis start \"<your initial project idea>\"")
+                return
+
+            initial_idea = " ".join(args[1:])
+            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
+
+            print("\nGenerating Project Roadmap...")
+            last_brief = memory.recall("last_genesis_brief")
+
+            if not isinstance(last_brief, dict) or not last_brief: # Check if it's a dict and not empty
+                print("❌ No project brief found in memory. Please run `genesis start` first.")
+                return
+            
+            roadmap_content = roadmap_generator_cli.generate(last_brief)
+            print("\n--- Generated roadmap.md ---\n")
+            print(roadmap_content)
+            print("\n----------------------------\n")
+            
+            # Placeholder for reflective prompt for roadmap style
+            # save_roadmap_style_confirm = input("Save this roadmap style as your default? (y/n): ").lower()
+            # if save_roadmap_style_confirm == 'y': ...
+            
+            save_confirm = input("Save this content to roadmap.md? (y/n): ").lower()
+            if save_confirm == 'y':
+                if utils.write_file("roadmap.md", roadmap_content):
+                    print("✅ roadmap.md saved successfully!")
+                else:
+                    print("❌ Failed to save roadmap.md.")
+            else:
+                print("Save cancelled.")
+
+    register("genesis", handle_genesis, "Manages project genesis and document generation.")
 
     # --- Just-in-Time Proactive Suggestions Function ---
     def display_just_in_time_suggestions(last_command_name: str | None, last_args: list | None = None):

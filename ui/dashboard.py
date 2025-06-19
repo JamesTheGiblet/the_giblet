@@ -167,15 +167,37 @@ def main():
             if st.session_state.generated_readme:
                 with st.expander("Generated README.md", expanded=True):
                     st.markdown(st.session_state.generated_readme)
+                    # Existing save logic for the README.md file
                     if st.button("Save README.md to disk", key="save_readme_disk_btn"):
                          with st.spinner("Saving..."):
                             try:
                                 write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
                                 write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
                                 write_response.raise_for_status()
-                                st.success("✅ README.md saved successfully!", icon="📄")
+                                st.success("✅ README.md saved successfully!", icon="📄") # Kept existing success message
                             except Exception as e:
                                 st.error(f"Failed to save README.md: {e}")
+
+                    # --- Reflective Prompt UI ---
+                    st.info("Did you like this format? You can make it your default.")
+                    if st.button("Save README Style as Default", key="save_readme_style_btn"):
+                        # We need to know what settings were used. This assumes we stored them.
+                        # For now, let's assume `st.session_state.last_readme_settings` exists.
+                        # The logic to populate `last_readme_settings` would be in the README generation step (future refactor).
+                        if st.session_state.get('last_readme_settings'):
+                            with st.spinner("Saving default style..."):
+                                try:
+                                    payload = {
+                                        "category": "readme",
+                                        "settings": st.session_state.last_readme_settings
+                                    }
+                                    response = httpx.post("http://localhost:8000/style/set_preferences", json=payload, timeout=10)
+                                    response.raise_for_status()
+                                    st.toast("✅ README style preferences updated!")
+                                except Exception as e:
+                                    st.error(f"Failed to save style: {e}")
+                        else:
+                            st.warning("Could not find the style settings for the last README. (Note: This requires a refactor in the generation step to store settings).")
             
             if st.session_state.generated_roadmap:
                 with st.expander("Generated roadmap.md", expanded=True):
