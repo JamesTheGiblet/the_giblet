@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock # Import MagicMock
 import os
 
 # Ensure the api module can be imported
@@ -22,9 +22,21 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def mock_llm_calls():
     """Mocks the LLM provider to avoid actual API calls during tests."""
-    with patch('core.llm_provider_base.LLMProvider.generate_text') as mock_generate:
-        mock_generate.return_value = '{"mock": "response"}' # Default JSON-like response
-        yield mock_generate
+    # Master mock for generate_text behavior control from tests
+    master_mock_generate_text = MagicMock()
+    # Default return value, can be overridden in tests
+    master_mock_generate_text.return_value = '{"mock": "response"}'
+
+    def side_effect_for_provider_generate_text(*args, **kwargs):
+        return master_mock_generate_text(*args, **kwargs)
+
+    with patch('core.llm_providers.GeminiProvider.generate_text', side_effect=side_effect_for_provider_generate_text) as mock_gemini_gen, \
+         patch('core.llm_providers.OllamaProvider.generate_text', side_effect=side_effect_for_provider_generate_text) as mock_ollama_gen, \
+         patch('core.llm_providers.GeminiProvider.is_available', return_value=True) as mock_gemini_available, \
+         patch('core.llm_providers.OllamaProvider.is_available', return_value=True) as mock_ollama_available:
+        
+        # Yield the master mock so tests can configure its return_value and assert calls
+        yield master_mock_generate_text
 
 # --- Evaluation for Task 16.1, 16.2, 16.3, 16.4: Interactive Cockpit ---
 
@@ -114,4 +126,3 @@ def test_cockpit_automation_changelog_endpoint():
         changelog_dir = utils.WORKSPACE_DIR / "data" / "changelogs"
         for f in changelog_dir.glob("CHANGELOG_test-branch_*.md"):
             os.remove(f)
-
