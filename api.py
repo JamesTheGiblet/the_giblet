@@ -24,6 +24,7 @@ from core.llm_provider_base import LLMProvider # Import base provider
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 from core.readme_generator import ReadmeGenerator # Add near the top with other core imports
+from core.roadmap_generator import RoadmapGenerator # Add with other core imports
 
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
@@ -98,6 +99,11 @@ idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance,
                                      style_preference_manager=style_manager_for_api) # Pass StylePreferenceManager
 # Instantiate the ReadmeGenerator for the API
 readme_generator_for_api = ReadmeGenerator(
+    llm_provider=api_llm_provider,
+    style_manager=style_manager_for_api
+)
+# Instantiate the RoadmapGenerator for the API
+roadmap_generator_for_api = RoadmapGenerator(
     llm_provider=api_llm_provider,
     style_manager=style_manager_for_api
 )
@@ -176,6 +182,13 @@ class GenerateReadmeRequest(BaseModel):
 
 class GenerateReadmeResponse(BaseModel):
     readme_content: str
+
+# Define request/response models
+class GenerateRoadmapRequest(BaseModel):
+    project_brief: dict[str, Any]
+
+class GenerateRoadmapResponse(BaseModel):
+    roadmap_content: str
 
 # --- API Endpoints ---
 @app.get("/")
@@ -338,6 +351,20 @@ def generate_readme_endpoint(request: GenerateReadmeRequest):
     return GenerateReadmeResponse(readme_content=content)
 
 
+# ... add with other endpoints ...
+
+@app.post("/generate/roadmap", response_model=GenerateRoadmapResponse)
+def generate_roadmap_endpoint(request: GenerateRoadmapRequest):
+    """Generates a project roadmap from a project brief."""
+    if not request.project_brief:
+        raise HTTPException(status_code=400, detail="Project brief cannot be empty.")
+    
+    content = roadmap_generator_for_api.generate(request.project_brief)
+    
+    if "Failed" in content or "Error" in content:
+        raise HTTPException(status_code=500, detail=content)
+        
+    return GenerateRoadmapResponse(roadmap_content=content)
 
 
 # --- Skill API Endpoints ---

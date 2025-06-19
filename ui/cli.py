@@ -31,6 +31,7 @@ from core.genesis_logger import GenesisLogger # Import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
 from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
 from core.mini_readme_generator import MiniReadmeGenerator # 1. Add the new import at the top
+from core.readme_generator import ReadmeGenerator # <<< 1. IMPORT THE NEW GENERATOR
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
@@ -104,13 +105,17 @@ def start_cli_loop():
     # Update instantiations to include project_contextualizer
     idea_synth = IdeaSynthesizer(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider,
                                  project_contextualizer=project_contextualizer_cli,
-                                 style_preference_manager=style_manager_for_cli) # Pass style_manager
+                                 style_preference_manager=style_manager_for_cli)
     code_generator = CodeGenerator(user_profile=user_profile, memory_system=memory, llm_provider=cli_llm_provider, project_contextualizer=project_contextualizer_cli)
-    # 2. Instantiate the new generator
+    # <<< 2. INSTANTIATE BOTH GENERATORS
     mini_readme_generator_cli = MiniReadmeGenerator(
         llm_provider=cli_llm_provider,
         style_manager=style_manager_for_cli,
         user_profile=user_profile
+    )
+    readme_generator_cli = ReadmeGenerator(
+        llm_provider=cli_llm_provider,
+        style_manager=style_manager_for_cli
     )
 
     # Instantiate IdeaInterpreter

@@ -48,6 +48,8 @@ def main():
         st.session_state.genesis_final_brief = None
     if 'generated_readme' not in st.session_state: # For README generation
         st.session_state.generated_readme = None
+    if 'generated_roadmap' not in st.session_state: # For ROADMAP generation
+        st.session_state.generated_roadmap = None
 
     # --- Sidebar ---
     with st.sidebar:
@@ -129,40 +131,71 @@ def main():
             st.subheader("📝 Final Project Brief")
             st.json(st.session_state.genesis_final_brief)
 
-            # --- NEW README GENERATION UI ---
-            if 'generated_readme' not in st.session_state:
-                st.session_state.generated_readme = None
+            # --- Document Generation ---
+            col1, col2 = st.columns(2)
 
-            if st.button("Generate Project README", key="generate_project_readme_btn"):
-                with st.spinner("Generating style-aware README..."):
-                    try:
-                        payload = {"project_brief": st.session_state.genesis_final_brief}
-                        response = httpx.post("http://localhost:8000/generate/readme", json=payload, timeout=120)
-                        response.raise_for_status()
-                        st.session_state.generated_readme = response.json().get("readme_content")
-                    except Exception as e:
-                        st.error(f"Failed to generate README: {e}")
+            with col1:
+                # README Generation UI
+                if 'generated_readme' not in st.session_state: # Should already be initialized above, but good for safety
+                    st.session_state.generated_readme = None
+
+                if st.button("Generate Project README", key="generate_project_readme_btn", use_container_width=True):
+                    with st.spinner("Generating style-aware README..."):
+                        try:
+                            payload = {"project_brief": st.session_state.genesis_final_brief}
+                            response = httpx.post("http://localhost:8000/generate/readme", json=payload, timeout=120)
+                            response.raise_for_status()
+                            st.session_state.generated_readme = response.json().get("readme_content")
+                        except Exception as e:
+                            st.error(f"Failed to generate README: {e}")
+
+            with col2:
+                # ROADMAP Generation UI
+                if 'generated_roadmap' not in st.session_state: # Should already be initialized above
+                    st.session_state.generated_roadmap = None
+                    
+                if st.button("Generate Project Roadmap", key="generate_project_roadmap_btn", use_container_width=True):
+                    with st.spinner("Generating style-aware roadmap..."):
+                        try:
+                            payload = {"project_brief": st.session_state.genesis_final_brief}
+                            response = httpx.post("http://localhost:8000/generate/roadmap", json=payload, timeout=120)
+                            response.raise_for_status()
+                            st.session_state.generated_roadmap = response.json().get("roadmap_content")
+                        except Exception as e:
+                            st.error(f"Failed to generate roadmap: {e}")
 
             if st.session_state.generated_readme:
                 with st.expander("Generated README.md", expanded=True):
                     st.markdown(st.session_state.generated_readme)
-                    # Add a button to save the README to a file
                     if st.button("Save README.md to disk", key="save_readme_disk_btn"):
                          with st.spinner("Saving..."):
                             try:
                                 write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
                                 write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
                                 write_response.raise_for_status()
-                                st.success("✅ README.md saved successfully!")
+                                st.success("✅ README.md saved successfully!", icon="📄")
                             except Exception as e:
                                 st.error(f"Failed to save README.md: {e}")
-            # --- END NEW UI ---
+            
+            if st.session_state.generated_roadmap:
+                with st.expander("Generated roadmap.md", expanded=True):
+                    st.markdown(st.session_state.generated_roadmap)
+                    if st.button("Save roadmap.md to disk", key="save_roadmap_disk_btn"):
+                         with st.spinner("Saving..."):
+                            try:
+                                write_payload = {"filepath": "roadmap.md", "content": st.session_state.generated_roadmap}
+                                write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                write_response.raise_for_status()
+                                st.success("✅ roadmap.md saved successfully!", icon="🗺️")
+                            except Exception as e:
+                                st.error(f"Failed to save roadmap.md: {e}")
 
             if st.button("Start New Genesis Session", key="restart_genesis_btn"):
                 st.session_state.genesis_conversation = []
                 st.session_state.genesis_session_active = False
                 st.session_state.genesis_final_brief = None
                 st.session_state.generated_readme = None # Clear readme on restart
+                st.session_state.generated_roadmap = None # Clear roadmap on restart
                 st.rerun()
 
     elif st.session_state.active_tab == "🗺️ Roadmap":
