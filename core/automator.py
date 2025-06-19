@@ -23,26 +23,45 @@ class Automator:
             source_code = filepath.read_text(encoding='utf-8')
             tree = ast.parse(source_code)
             
-            lines_to_replace = {} # This was lines_to_insert in the previous diff you showed me.
-                                  # I'll keep it as lines_to_replace based on the current full file content.
+            lines_to_replace = {} # Stores {line_number_to_replace: new_content_for_that_line}
+            
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef):
+                    replacement_stub_content = "# TODO: Implement this function."
+                    node_to_replace = None
+
                     # Case 1: Function with only 'pass'
                     if len(node.body) == 1 and isinstance(node.body[0], ast.Pass):
-                        pass_node = node.body[0]
-                        line_no = pass_node.lineno
-                        # The FIX in your previous request was to insert BEFORE pass.
-                        # The current code REPLACES pass.
-                        # I will stick to what the current full file shows, which is replacing.
-                        lines_to_replace[line_no] = ' ' * pass_node.col_offset + "# TODO: Implement this function."
-                    # Case 2: Function with a docstring and then 'pass'
+                        node_to_replace = node.body[0]
+                    # Case 2: Function with only '...' (ellipsis)
+                    elif len(node.body) == 1 and \
+                         isinstance(node.body[0], ast.Expr) and \
+                         isinstance(node.body[0].value, ast.Constant) and \
+                         node.body[0].value.value is Ellipsis:
+                        node_to_replace = node.body[0]
+                    # Case 3: Function with a docstring and then 'pass'
                     elif len(node.body) == 2 and \
                          isinstance(node.body[0], ast.Expr) and \
-                         isinstance(node.body[0].value, ast.Str) and \
+                         isinstance(node.body[0].value, ast.Constant) and \
+                         isinstance(node.body[0].value.value, str) and \
                          isinstance(node.body[1], ast.Pass):
-                        pass_node = node.body[1]
-                        line_no = pass_node.lineno
-                        lines_to_replace[line_no] = ' ' * pass_node.col_offset + "# TODO: Implement this function."
+                        node_to_replace = node.body[1]
+                    # Case 4: Function with a docstring and then '...' (ellipsis)
+                    elif len(node.body) == 2 and \
+                         isinstance(node.body[0], ast.Expr) and \
+                         isinstance(node.body[0].value, ast.Constant) and \
+                         isinstance(node.body[0].value.value, str) and \
+                         isinstance(node.body[1], ast.Expr) and \
+                         isinstance(node.body[1].value, ast.Constant) and \
+                         node.body[1].value.value is Ellipsis:
+                        node_to_replace = node.body[1]
+
+                    if node_to_replace:
+                        # Ensure lineno and col_offset are available. For ast.Expr, they are on the node itself.
+                        # For ast.Pass, they are also directly on the node.
+                        line_no = node_to_replace.lineno
+                        col_offset = node_to_replace.col_offset
+                        lines_to_replace[line_no] = ' ' * col_offset + replacement_stub_content
 
 
             if not lines_to_replace:
@@ -58,7 +77,7 @@ class Automator:
             
             # The previous diff added an extra newline at the end, this version doesn't.
             filepath.write_text('\n'.join(source_lines), encoding='utf-8')
-            print(f"✅ Successfully replaced {len(lines_to_replace)} 'pass' statements with TODO stubs.")
+            print(f"✅ Successfully processed {len(lines_to_replace)} empty function bodies with TODO stubs.")
             return True
 
         except Exception as e:

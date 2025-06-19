@@ -3,13 +3,12 @@
 import pytest
 from pathlib import Path
 import sys
-import os
 
 # Ensure the core modules can be imported
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent)) # Ensure core is in path
 
 from core.automator import Automator
-from core import utils # Import the whole module to allow monkeypatching
+from core.utils import write_file, read_file
 
 # --- Evaluation for Task 4.3: Stub Auto-Generator ---
 
@@ -39,30 +38,28 @@ class MyClass:
         print("Hello")
 """
     file_path = tmp_path / "stub_test_file.py"
+    # Use the project's own write_file utility for consistency if it's accessible and works,
+    # otherwise, use standard pathlib write_text.
     file_path.write_text(content, encoding="utf-8")
     return file_path
 
-def test_automator_stub_generation(temp_py_file_for_stubs, monkeypatch):
+def test_automator_stub_generation(temp_py_file_for_stubs, tmp_path, monkeypatch):
     """
     Assesses the automator's ability to correctly add TODO stubs to empty functions.
     """
-    # FIX: Temporarily set the project's WORKSPACE to the pytest tmp_path.
-    # This allows both automator.generate_stubs (which uses write_file) and the local
-    # read_file call to operate within the same sandboxed directory.
-    monkeypatch.setattr(utils, 'WORKSPACE_DIR', temp_py_file_for_stubs.parent)
-    
     automator = Automator()
-    
-    # The functions now operate on just the filename, relative to the monkeypatched WORKSPACE_DIR
-    file_name = temp_py_file_for_stubs.name
+
+    # Temporarily set the project's WORKSPACE_DIR to the pytest tmp_path for this test.
+    # This allows the utils functions (like read_file) to work within the temp directory
+    # without triggering the "outside of workspace" security check.
+    monkeypatch.setattr("core.utils.WORKSPACE_DIR", tmp_path)
     
     # Run the stub generation on the test file
-    success = automator.generate_stubs(file_name)
+    success = automator.generate_stubs(str(temp_py_file_for_stubs))
     assert success, "generate_stubs should return True on success."
 
     # Read the modified content
-    modified_content = utils.read_file(file_name)
-    assert modified_content is not None, "read_file should successfully read the modified file."
+    modified_content = read_file(str(temp_py_file_for_stubs))
 
     # 1. Check that complete functions are untouched
     assert "return a + b" in modified_content, "Existing function bodies should not be changed."
@@ -70,16 +67,20 @@ def test_automator_stub_generation(temp_py_file_for_stubs, monkeypatch):
 
     # 2. Check that stubs were added to empty functions/methods
     expected_stub = "# TODO: Implement this function."
+    
+    # Split content into lines for easier checking
     lines = modified_content.splitlines()
     
+    # Helper to check if a stub exists after a function definition
     def find_stub_after(func_def_line, all_lines):
         try:
             index = all_lines.index(func_def_line)
-            for i in range(index + 1, index + 4):
+            # The stub should be on a line following the def, likely indented
+            for i in range(index + 1, index + 4): # Check next few lines
                 if expected_stub in all_lines[i]:
                     return True
             return False
-        except (ValueError, IndexError):
+        except ValueError:
             return False
 
     assert find_stub_after("def function_with_pass(c, d):", lines), "Stub should be added to function with `pass`."
@@ -88,6 +89,6 @@ def test_automator_stub_generation(temp_py_file_for_stubs, monkeypatch):
     
     # 3. Check that the docstring was preserved
     assert '"""This is a docstring."""' in modified_content
+    # The stub should be after the docstring
     docstring_line_index = lines.index('    """This is a docstring."""')
     assert expected_stub in lines[docstring_line_index + 1].strip()
-
