@@ -1,6 +1,9 @@
 # core/utils.py
 import os
 import subprocess
+import platform
+import logging
+import re # Add this import
 from pathlib import Path
 
 # Define a base directory for safety. All file operations will be contained here.
@@ -76,3 +79,18 @@ def execute_command(command: str) -> tuple[int, str, str]:
     except Exception as e:
         print(f"❌ Error executing command '{command}': {e}")
         return (1, "", str(e))
+
+logger = logging.getLogger(__name__)
+
+def sanitize_directory_name(name: str) -> str:
+    """
+    Sanitizes a string to be suitable for a directory name.
+    - Converts to lowercase.
+    - Replaces spaces and hyphens with underscores.
+    - Removes characters that are not alphanumeric or underscores.
+    """
+    name = name.lower()
+    name = re.sub(r'[\s-]+', '_', name)  # Replace spaces and hyphens with underscores
+    name = re.sub(r'[^\w_]', '', name)    # Remove non-alphanumeric characters (excluding underscore)
+    name = re.sub(r'_+', '_', name)       # Replace multiple underscores with a single one
+    return name.strip('_')

@@ -2,7 +2,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel # <<< NEW IMPORT
 import sys
-from pathlib import Path
+from pathlib import Path # Keep Path import
 import shlex # Add shlex if not already imported at the top of api.py
 import json # Add this
 from typing import Any # Import Any
@@ -21,6 +21,11 @@ from core import agent, command_manager, utils, user_profile as core_user_profil
 from core.user_profile import UserProfile # New import
 from core.skill_manager import SkillManager # New import
 from core.llm_provider_base import LLMProvider # Import base provider
+# --- Add these to your Core Module Imports ---
+from core.github_client import GitHubClient
+from core.project_scaffold import ProjectScaffolder
+from core.readme_generator import ReadmeGenerator # Already imported, keep
+from core.roadmap_generator import RoadmapGenerator # Already imported, keep
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
 from core.readme_generator import ReadmeGenerator # Add near the top with other core imports
@@ -88,15 +93,25 @@ if not api_llm_provider or not api_llm_provider.is_available():
             print("⚠️ API: Fallback Gemini provider also not available. LLM features will be severely limited.")
             api_llm_provider = None # Or a NoOpLLMProvider
 
-# Instantiate ProjectContextualizer for the API
-# Assumes API runs from project root or similar. Memory instance is 'memory'.
+# --- Add these initializations with your other core modules ---
+# These generators are needed by the scaffolder
+readme_generator_api = ReadmeGenerator(llm_provider=api_llm_provider, style_manager=style_manager_for_api) # Already initialized, keep
+roadmap_generator_api = RoadmapGenerator(llm_provider=api_llm_provider, style_manager=style_manager_for_api) # Already initialized, keep
+
+github_client_api = GitHubClient()
+project_scaffolder_api = ProjectScaffolder(
+ readme_generator=readme_generator_api,
+ roadmap_generator=roadmap_generator_api,
+ style_manager=style_manager_for_api
+)
+
 project_contextualizer_api = ProjectContextualizer(memory_system=memory, project_root=".")
 
 idea_synth_for_api = IdeaSynthesizer(user_profile=user_profile_instance,
-                                     memory_system=memory,
-                                     llm_provider=api_llm_provider,
-                                     project_contextualizer=project_contextualizer_api,
-                                     style_preference_manager=style_manager_for_api) # Pass StylePreferenceManager
+ memory_system=memory,
+ llm_provider=api_llm_provider,
+ project_contextualizer=project_contextualizer_api,
+ style_preference_manager=style_manager_for_api) # Pass StylePreferenceManager
 # Instantiate the ReadmeGenerator for the API
 readme_generator_for_api = ReadmeGenerator(
     llm_provider=api_llm_provider,
@@ -119,6 +134,19 @@ class GenerationRequest(BaseModel):
 class TestGenerationRequest(BaseModel):
     filepath: str
 
+# --- Add these to your Pydantic Models ---
+class ScaffoldLocalRequest(BaseModel):
+ project_name: str
+ project_brief: dict[str, Any]
+
+class CreateRepoRequest(BaseModel):
+ repo_name: str
+ description: str
+ private: bool = True
+
+class ScaffoldResponse(BaseModel):
+ success: bool
+ message: str
 # 1. Add these new Pydantic models at the top with the others
 class RefactorRequest(BaseModel):
     filepath: str
@@ -216,6 +244,46 @@ def get_roadmap():
     return {"roadmap": roadmap_manager.get_tasks()}
 
 # <<< NEW ENDPOINTS
+# --- Add these new endpoints to your API file ---
+@app.post("/project/scaffold_local", response_model=ScaffoldResponse)
+def scaffold_local_project_endpoint(request: ScaffoldLocalRequest):
+    """
+    Creates a new project structure on the local filesystem.
+    """
+    if not request.project_name or not request.project_brief:
+        raise HTTPException(status_code=400, detail="Project name and brief are required.")
+
+    # The base_path can be configured or defaulted to the project's root
+    project_path = project_scaffolder_api.scaffold_local(
+        project_name=request.project_name,
+        project_brief=request.project_brief,
+        base_path=Path.cwd() # Or another configurable path
+    )
+
+    if project_path:
+        return ScaffoldResponse(success=True, message="Local project scaffolded successfully.", path=str(project_path))
+    else:
+        raise HTTPException(status_code=500, detail="Failed to scaffold local project.")
+
+@app.post("/project/create_github_repo", response_model=ScaffoldResponse)
+def create_github_repo_endpoint(request: CreateRepoRequest):
+    """
+    Creates a new repository on GitHub.
+    """
+    if not request.repo_name:
+        raise HTTPException(status_code=400, detail="Repository name is required.")
+
+    result = github_client_api.create_repo(
+        repo_name=request.repo_name,
+        description=request.description,
+        private=request.private
+    )
+
+    if result and "html_url" in result:
+        return ScaffoldResponse(success=True, message=f"GitHub repository created: {result['html_url']}")
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create GitHub repository.")
+
 @app.post("/generate/function")
 def generate_function_endpoint(request: GenerationRequest):
     """Generates a Python function from a description."""
