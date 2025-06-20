@@ -27,7 +27,7 @@ class RoadmapGenerator:
         """
         Creates the prompt for the LLM to generate the roadmap.md.
         """
-        style_prefs = self.style_manager.get_style()
+        style_prefs = self.style_manager.get_all_preferences() # Use get_all_preferences()
         
         roadmap_format = style_prefs.get("roadmap", {}).get("default_format", "phase_based")
         roadmap_tone = style_prefs.get("roadmap", {}).get("default_tone", "professional")

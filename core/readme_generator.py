@@ -27,7 +27,7 @@ class ReadmeGenerator:
         """
         Creates the prompt for the LLM to generate the README.md.
         """
-        style_prefs = self.style_manager.get_style()
+        style_prefs = self.style_manager.get_all_preferences() # Use get_all_preferences()
         
         # Extract style preferences for the prompt
         readme_style = style_prefs.get("readme", {}).get("default_style", "standard")

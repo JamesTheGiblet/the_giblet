@@ -169,6 +169,22 @@ class StylePreferenceManager:
         self._save_preferences()
         logger.info(f"Style preferences reset to defaults and saved to {self.file_path}")
 
+    def set_preferences_for_category(self, category: str, settings: Dict[str, Any]) -> None:
+        """
+        Sets multiple preferences for a given category.
+
+        Args:
+            category: The category name (e.g., "readme", "roadmap").
+            settings: A dictionary of key-value pairs to set within that category.
+        """
+        if category not in self.preferences or not isinstance(self.preferences.get(category), dict):
+            self.preferences[category] = {} # Ensure the category exists as a dictionary
+
+        for key, value in settings.items():
+            self.preferences[category][key] = value
+        
+        self._save_preferences()
+        logger.info(f"Style preferences for category '{category}' updated.")
 # Example Usage (for testing purposes)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
