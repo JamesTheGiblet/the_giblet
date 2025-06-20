@@ -3,6 +3,7 @@ import ast
 from pathlib import Path
 import git # <<< NEW IMPORT
 from datetime import datetime # <<< NEW IMPORT
+from . import utils # Import the utils module
 
 class Automator:
     def __init__(self):
@@ -109,7 +110,7 @@ class Automator:
                 line += f"{formatted_message}\n"
                 changelog_content.append(line)
             
-            changelog_dir = Path(__file__).parent.parent / "data" / "changelogs" # Ensure 'data' directory exists
+            changelog_dir = utils.WORKSPACE_DIR / "data" / "changelogs" # Use utils.WORKSPACE_DIR
             changelog_dir.mkdir(parents=True, exist_ok=True) # Create directory if it doesn't exist
             changelog_file = changelog_dir / f"CHANGELOG_{active_branch.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md" # Added time and branch to filename
             

@@ -80,14 +80,24 @@ class StylePreferenceManager:
     def _load_preferences(self) -> None:
         """Loads preferences from the JSON file."""
         self._ensure_file_exists() # Ensures file is created with defaults if it doesn't exist
+                                  # and populates self.preferences if it created the file.
 
-        # If _ensure_file_exists failed to create the file and fell back to in-memory defaults,
-        # self.preferences is already set. If the file exists, we try to load it.
-        if not self.file_path.exists() or not self.preferences: # Check if preferences are still empty
-             return
+        # If the file pre-existed, self.preferences is still {} from __init__.
+        # We must load from the file.
+        # If _ensure_file_exists just created the file, self.preferences contains defaults.
+        # Reading from the file again will load those same defaults, which is fine.
+        if not self.file_path.exists(): # Safeguard if _ensure_file_exists had an issue
+            logger.warning(f"Preference file {self.file_path} does not exist after attempting creation. Using in-memory defaults if not already set.")
+            if not self.preferences: # If _ensure_file_exists also failed to set defaults
+                self.preferences = copy.deepcopy(DEFAULT_STYLE_PREFERENCES)
+            return
         try:
             with open(self.file_path, 'r', encoding='utf-8') as f:
-                self.preferences = json.load(f)
+                content = f.read()
+                if content.strip(): # Only attempt to load if there's non-whitespace content
+                    self.preferences = json.loads(content)
+                # If content is empty, self.preferences might have been set by _ensure_file_exists (if new file)
+                # or it remains {} (if pre-existing empty file), which is handled by get_preference defaults.
         except FileNotFoundError:
             # This case should ideally be handled by _ensure_file_exists
             logger.info(f"Style preference file not found at {self.file_path}. Initializing with defaults.")
@@ -100,7 +110,8 @@ class StylePreferenceManager:
             self._save_preferences()
         except IOError as e:
             logger.error(f"Could not read style preference file {self.file_path}: {e}. Using defaults.")
-            self.preferences = copy.deepcopy(DEFAULT_STYLE_PREFERENCES)
+            if not self.preferences: # Only set to default if not already populated (e.g., by _ensure_file_exists)
+                self.preferences = copy.deepcopy(DEFAULT_STYLE_PREFERENCES)
 
     def _backup_corrupted_file(self) -> None:
         """Backs up a corrupted preferences file."""
