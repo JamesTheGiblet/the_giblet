@@ -234,6 +234,10 @@ class StyleUpdateRequest(BaseModel):
 class StyleUpdateResponse(BaseModel):
     message: str
     updated_preferences: dict[str, Any]
+
+# --- Add with other Pydantic Models ---
+class RandomIdeaResponse(BaseModel):
+    idea: str
 # --- API Endpoints ---
 @app.get("/")
 def read_root():
@@ -466,6 +470,25 @@ def set_style_preferences_endpoint(request: StyleUpdateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- Add this new endpoint to your API file ---
+@app.post("/ideas/random_weird", response_model=RandomIdeaResponse)
+def get_random_weird_idea_endpoint():
+    """
+    Generates a single, random, weird project idea using the IdeaSynthesizer.
+    """
+    # The prompt for a random idea can be simple and open-ended.
+    random_prompt = "a strange and wonderful new software project"
+    
+    # Use the existing idea_synth_for_api instance
+    idea = idea_synth_for_api.generate_ideas(random_prompt, weird_mode=True)
+    
+    if not idea or "Could not get a response" in idea:
+        raise HTTPException(status_code=500, detail="Failed to generate a random idea from the LLM.")
+        
+    # The idea synth might return a list or formatted text, let's just grab the first line.
+    first_idea = idea.splitlines()[0] if idea else "A mysteriously blank idea." # Handle empty idea
+    
+    return RandomIdeaResponse(idea=first_idea)
 
 
 # --- Skill API Endpoints ---

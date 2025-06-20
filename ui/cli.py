@@ -118,10 +118,6 @@ def start_cli_loop():
         llm_provider=cli_llm_provider,
         style_manager=style_manager_for_cli
     )
-    readme_generator_cli = ReadmeGenerator(
-        llm_provider=cli_llm_provider,
-        style_manager=style_manager_for_cli
-    )
     # Instantiate RoadmapGenerator for Genesis Mode document generation
     roadmap_generator_cli = RoadmapGenerator(
         llm_provider=cli_llm_provider,
@@ -147,6 +143,50 @@ def start_cli_loop():
     # --- Register All Commands ---
     def register(name, handler, description=""):
         command_manager.register(name, handler, description)
+
+    # --- Helper function for the Genesis interview loop ---
+    def _run_genesis_interview(initial_idea: str, idea_interpreter, mem):
+        """
+        Handles the common logic for the interactive Q&A session in Genesis mode.
+        """
+        print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
+        
+        questions = idea_interpreter.start_interpretation_session(initial_idea)
+        if not questions:
+            print("\n❌ Error: Could not start the interpretation session. The LLM might be unavailable.")
+            return
+
+        print("\n🤖 The Giblet asks:\n")
+        print(questions)
+        
+        print("\n> Provide your answers below. Type 'EOF' or press Ctrl+D on a new line when you're done.")
+        user_answers_lines = []
+        while True:
+            try:
+                line = input()
+                if line.strip().upper() == "EOF":
+                    break
+            except EOFError:
+                break
+            user_answers_lines.append(line)
+        user_answers = "\n".join(user_answers_lines)
+
+        if not user_answers.strip():
+            print("\n❌ No answer provided. Aborting Genesis session.")
+            return
+
+        print("\nAnalyzing and synthesizing project brief...")
+        result = idea_interpreter.submit_answer_and_continue(user_answers)
+
+        if result.get("status") == "complete":
+            final_brief = result.get("data", {})
+            mem.remember("last_genesis_brief", final_brief)
+            print("\n--- ✅ Genesis Complete: Synthesized Project Brief ---")
+            print(json.dumps(final_brief, indent=2))
+            print("----------------------------------------------------\n")
+            print("Next step: Run `genesis generate-readme` or `genesis scaffold`.")
+        else:
+            print(f"\n❌ An error occurred during synthesis: {result.get('message', 'Unknown error.')}")
 
     # Help Command
     def handle_help(args):
@@ -180,7 +220,6 @@ def start_cli_loop():
     register("help", handle_help, "Shows this help message.")
 
     # File Commands
-    # 3. The `handle_write` function will be replaced with this new version
     def handle_write(args):
         if not args:
             print("Usage: write <filepath>")
@@ -206,7 +245,6 @@ def start_cli_loop():
     register("read", lambda args: utils.read_file(args[0]) if args else print("Usage: read <filepath>"), "Reads a file.")
     register("write", handle_write, "Writes content to a file.")
     register("ls", lambda args: print('\n'.join(utils.list_files(args[0] if args else "."))), "Lists files.")
-    # <<< UPDATED: 'exec' handler to return results for self-correction
     register("exec", lambda args: utils.execute_command(" ".join(args)), "Executes a shell command.")
     
     # Memory Commands
@@ -220,7 +258,6 @@ def start_cli_loop():
     register("focus", lambda args: memory.remember("current_focus", None) or print("Focus cleared.") if args and args[0] == '--clear' else (memory.remember("current_focus", " ".join(args)) or print(f"Focus set to: {' '.join(args)}")) if args else print(f"Current focus: {memory.recall('current_focus')}"), "Sets or clears the session focus.")
 
     # Project & Git Commands
-    # <<< UPDATED: The new handler for the 'roadmap' command
     def handle_roadmap(args):
         print("🗺️  Fetching roadmap from Giblet API...")
         try:
@@ -286,10 +323,8 @@ def start_cli_loop():
 
         sub_command = args[0]
         if sub_command == "add":
-            # The full argument string for 'add' is everything after 'todo add '
             arg_string = " ".join(args[1:])
             try:
-                # Use shlex to correctly parse arguments with quotes
                 parsed_args = shlex.split(arg_string)
                 if len(parsed_args) != 2:
                     raise ValueError("Invalid number of arguments for 'todo add'")
@@ -298,18 +333,13 @@ def start_cli_loop():
 
                 if not assignee.startswith('@'):
                     raise ValueError("Assignee must start with '@'")
-
-                # This will now cause an error as roadmap_manager is not defined.
-                # This part of the code would need to be refactored to use an API
-                # or have roadmap_manager re-instantiated if 'todo' commands
-                # are to remain functional with the local RoadmapManager.
-                roadmap_manager_cli.add_shared_task(description, assignee) # Use the CLI's roadmap_manager instance
+                roadmap_manager_cli.add_shared_task(description, assignee) 
 
             except ValueError as e:
                 print(f"Error: {e}")
                 print('Usage: todo add "@<user>" "<description>" (ensure description is quoted if it contains spaces)')
         elif sub_command == "list":
-            tasks = roadmap_manager_cli.view_shared_tasks() # Use the CLI's roadmap_manager instance
+            tasks = roadmap_manager_cli.view_shared_tasks() 
             if tasks:
                 print("\n--- Shared To-Do List ---")
                 for task in tasks:
@@ -323,40 +353,32 @@ def start_cli_loop():
 
     # System Commands
     def handle_dashboard(args):
-        # Check if a process is already stored in session memory and is still running
         existing_process = memory.recall('streamlit_process')
         if existing_process and isinstance(existing_process, subprocess.Popen) and existing_process.poll() is None:
             print("Dashboard is already running. Opening a new browser tab to http://localhost:8501...")
             webbrowser.open("http://localhost:8501")
             return
 
-        #  If no process is running, launch a new one
         print("🚀 Launching The Giblet Dashboard...")
         print("   If a browser tab doesn't open, please navigate to http://localhost:8501")
         try:
-            # Start the streamlit server as a background process
             new_process = subprocess.Popen(
                 [sys.executable, "-m", "streamlit", "run", "ui/dashboard.py", "--server.runOnSave", "true"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-            # Store the new process object in session memory
             memory.remember('streamlit_process', new_process)
-            # Give the server a moment to start up
             time.sleep(3)
-            # Explicitly open the web browser
             webbrowser.open("http://localhost:8501")
         except Exception as e:
             print(f"❌ Failed to launch dashboard: {e}")
     register("dashboard", handle_dashboard, "Launches or focuses the web dashboard.")
 
-    # <<< UPDATED: handle_execute with self-correction logic
     def handle_execute(args):
         plan = memory.recall('last_plan')
-        # Check if the plan is a list and not empty
         if not isinstance(plan, list) or not plan:
             print("❌ No plan found in memory. Please generate a plan first using the 'plan' command.")
-            if isinstance(plan, str): # If it's the default error string from recall
+            if isinstance(plan, str): 
                 print(f"   (Details: {plan})")
             return
 
@@ -373,20 +395,16 @@ def start_cli_loop():
         print("\n🚀 Executing plan...")
         for i, command_string in enumerate(plan, 1):
             print(f"\n--- Running Step {i}: giblet {command_string} ---")
-            # Use shlex to correctly parse the command string from the plan
             parts = shlex.split(command_string)
-            if not parts: # If shlex.split results in an empty list (e.g., command_string was "")
+            if not parts: 
                 print(f"   └─ Skipping empty command in plan (Step {i}).")
-                continue # Skip to the next command in the plan
+                continue 
 
             command_name = parts[0].lower()
             cmd_args = parts[1:]
-
-            # Execute the command and get its result
-            # This assumes command_manager.execute() is modified to return handler results
             execution_result = command_manager.execute(command_name, cmd_args)
 
-            return_code, stdout, stderr = 0, "", "" # Defaults
+            return_code, stdout, stderr = 0, "", "" 
             if isinstance(execution_result, tuple) and len(execution_result) == 3:
                 return_code, stdout, stderr = execution_result
             
@@ -400,14 +418,12 @@ def start_cli_loop():
                     print(f"   └─ ❗ Tests failed. Attempting self-correction ({attempt + 1}/{MAX_FIX_ATTEMPTS})...")
                     file_to_test = memory.recall('last_file_written')
                     if not file_to_test and len(cmd_args) > 0:
-                        for arg_path in cmd_args: # Iterate through pytest arguments
-                            if Path(arg_path).is_file() and arg_path.endswith(".py"): # Check if arg is a file and python
+                        for arg_path in cmd_args: 
+                            if Path(arg_path).is_file() and arg_path.endswith(".py"): 
                                 file_to_test = arg_path
                                 break
-                            elif Path(arg_path).is_dir(): # If it's a dir, pytest might run tests within it
-                                # This heuristic could be improved, e.g. by looking for test files in that dir
-                                # For now, we can't reliably pick a single file to fix if a dir is given.
-                                pass # Or try to find the most recently modified .py file in that dir
+                            elif Path(arg_path).is_dir(): 
+                                pass 
 
                     if file_to_test:
                         code_to_fix = utils.read_file(file_to_test)
@@ -416,32 +432,31 @@ def start_cli_loop():
                             fixed_code = agent.attempt_fix(code_to_fix, current_error_log)
                             print(f"   └─ Proposed fix by LLM for {file_to_test}:\n-------\n{fixed_code}\n-------")
                             
-                            # More robust sanity check: ensure there's at least one non-comment, non-empty line
                             has_actual_code = any(line.strip() and not line.strip().startswith("#") for line in fixed_code.splitlines())
                             if fixed_code and has_actual_code:
                                 utils.write_file(file_to_test, fixed_code)
                                 print(f"   └─ ✨ Applied potential fix to {file_to_test}. Retrying tests...")
                                 current_return_code, retry_stdout, retry_stderr = utils.execute_command(" ".join(cmd_args))
-                                current_error_log = retry_stdout + retry_stderr # Update error log for next potential attempt
+                                current_error_log = retry_stdout + retry_stderr 
 
                                 if current_return_code == 0:
                                     print("   └─ ✅ Self-correction successful! Tests now pass.")
-                                    break # Exit the fix attempt loop
+                                    break 
                                 else:
                                     print(f"   └─ ❌ Self-correction attempt {attempt + 1} failed. Tests still failing.")
                                     if attempt + 1 == MAX_FIX_ATTEMPTS:
                                         print(f"      └─ Max fix attempts reached. Last error log:\n{current_error_log}")
                             else:
                                 print(f"   └─ ⚠️ LLM did not provide a valid fix on attempt {attempt + 1}. Stopping self-correction for this step.")
-                                break # Exit the fix attempt loop
+                                break 
                         else:
                             print(f"   └─ ⚠️ Could not read file {file_to_test} to attempt fix. Stopping self-correction.")
-                            break # Exit the fix attempt loop
+                            break 
                     else:
                         print("   └─ ⚠️ Could not determine which file to fix for self-correction. Stopping.")
-                        break # Exit the fix attempt loop
-                else: # This 'else' belongs to the 'for' loop, executed if the loop completed without a 'break'
-                    if current_return_code != 0: # Check if tests are still failing after all attempts
+                        break 
+                else: 
+                    if current_return_code != 0: 
                         print("   └─ ❌ Self-correction ultimately failed after all attempts.")
                         
         print("\n✅ Plan execution complete.")
@@ -449,13 +464,10 @@ def start_cli_loop():
     register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")
     register("execute", handle_execute, "Executes the most recently created plan.")
 
-    # 3. Add the new command handler function in start_cli_loop()
     def handle_watch(args):
         start_watching()
     register("watch", handle_watch, "Enters watch mode to provide proactive suggestions on file changes.")
 
-    # 4. Add the new command handler function and registration
-    # 2. Update the `handle_plan` function to save the plan
     def handle_plan(args):
         if not args:
             print("Usage: plan \"<your high-level goal>\"")
@@ -466,14 +478,13 @@ def start_cli_loop():
 
         print("\n--- Generated Plan ---")
         if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
-            # <<< NEW: Save the plan to session memory
             memory.remember('last_plan', plan)
             for i, step in enumerate(plan, 1):
                 print(f"Step {i}: giblet {step}")
             print("----------------------\n")
             print("To run this plan, use the 'execute' command.")
         elif isinstance(plan, list) and len(plan) > 0 :
-            print(plan[0]) # Print the failure message
+            print(plan[0]) 
             print("----------------------\n")
         else:
             print("Failed to generate a plan or the plan was empty.")
@@ -491,13 +502,13 @@ def start_cli_loop():
         if action == "get":
             if len(args) == 1:
                 print(user_profile.get_all_data())
-            elif len(args) == 2: # Get all preferences in a category
+            elif len(args) == 2: 
                 category_name = args[1]
-                category_data = user_profile.data.get(category_name) # Access data directly
-                if category_data is not None: # Check if category exists
-                    if category_data: # Check if category is not empty
+                category_data = user_profile.data.get(category_name) 
+                if category_data is not None: 
+                    if category_data: 
                         print(f"Preferences in category '{category_name}':")
-                        for key, value_item in category_data.items(): # Renamed value to value_item
+                        for key, value_item in category_data.items(): 
                             print(f"  {key}: {value_item}")
                     else:
                         print(f"Category '{category_name}' is empty.")
@@ -548,7 +559,6 @@ def start_cli_loop():
             model_name = capability_profile.get("model_name")
             if provider_name and model_name:
                 user_profile.save_gauntlet_profile(provider_name, model_name, capability_profile)
-                # Confirmation already printed by save_gauntlet_profile
 
     register("assess model", handle_assess_model, "Runs capability tests (gauntlet) on the current LLM.")
 
@@ -564,9 +574,7 @@ def start_cli_loop():
         action = args[0].lower()
         if action == "status":
             active_provider_from_profile = user_profile.get_preference("llm_provider_config", "active_provider")
-            
-            # Determine effective active provider (considering default fallback)
-            effective_active_provider = active_provider_from_profile or "gemini" # Default to gemini if not set
+            effective_active_provider = active_provider_from_profile or "gemini" 
             
             print(f"Effective Active LLM Provider: {effective_active_provider}")
             if not active_provider_from_profile:
@@ -574,13 +582,13 @@ def start_cli_loop():
 
             provider_configs = user_profile.get_preference("llm_provider_config", "providers", {})
             
-            for provider_name_key in ["gemini", "ollama"]: # Iterate through known providers
+            for provider_name_key in ["gemini", "ollama"]: 
                 print(f"\nSettings for {provider_name_key.capitalize()}:")
-                config = provider_configs.get(provider_name_key, DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"].get(provider_name_key, {})) # Get from profile or default structure
+                config = provider_configs.get(provider_name_key, DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"].get(provider_name_key, {})) 
                 for key, value in config.items():
-                    val_display = "*******" if "api_key" in key and value else value # Mask API key
+                    val_display = "*******" if "api_key" in key and value else value 
                     print(f"  - {key}: {val_display}")
-        elif action == "use": # Logic for 'llm use'
+        elif action == "use": 
             if len(args) < 2 or args[1].lower() not in ["gemini", "ollama"]:
                 print("Usage: llm use <gemini|ollama>")
                 return
@@ -597,7 +605,7 @@ def start_cli_loop():
             provider_name = args[1].lower()
             key = args[2]
             value = " ".join(args[3:])
-            user_profile.add_preference(("llm_provider_config", "providers", provider_name), key, value) # Nested preference setting
+            user_profile.add_preference(("llm_provider_config", "providers", provider_name), key, value) 
             print(f"Set {key} = {value} for {provider_name}. Restart Giblet for changes to take full effect.")
         else:
             print(f"Unknown llm command: {action}. Use 'status', 'use', or 'config'.")
@@ -610,11 +618,10 @@ def start_cli_loop():
             print("Example: feedback good Loved the creativity!")
             return
 
-        # --- Refined rating mapping to integers ---
         rating_map = {"good": 5, "positive": 5,
                       "ok": 3, "neutral": 3,
                       "bad": 1, "negative": 1}
-        rating_str = args[0].lower() # To match the keys in rating_map, which are lowercase
+        rating_str = args[0].lower() 
         rating = rating_map.get(rating_str)
         if rating is None:
             print(f"Invalid feedback rating: '{rating_str}'. Please use 'good', 'ok', or 'bad'.")
@@ -629,7 +636,7 @@ def start_cli_loop():
         else:
             print("Warning: No valid last AI interaction found with context_id. Recording feedback without context.")
             user_profile.add_feedback(rating, comment)
-        memory.remember('last_ai_interaction', None) # Clear after feedback is given
+        memory.remember('last_ai_interaction', None) 
 
     register("feedback", handle_feedback, "Provide feedback on the last AI-generated output.")
 
@@ -652,7 +659,7 @@ def start_cli_loop():
                 return
             
             new_skill_name = args[1]
-            trigger_phrase = " ".join(args[2:]) if len(args) > 2 else None # Assumes trigger phrase is the rest
+            trigger_phrase = " ".join(args[2:]) if len(args) > 2 else None 
             if trigger_phrase:
                 trigger_phrase = trigger_phrase.strip('"').strip("'")
 
@@ -674,10 +681,10 @@ def start_cli_loop():
             confirm_save = input(f"Save this skill as '{new_skill_name.lower()}_skill.py' in the skills/ directory? (y/n): ").lower()
             if confirm_save == 'y':
                 skill_filename = f"{new_skill_name.lower()}_skill.py"
-                skill_filepath = SkillManager.SKILLS_DIR / skill_filename # Use SKILLS_DIR from SkillManager
-                if utils.write_file(str(skill_filepath.relative_to(utils.WORKSPACE_DIR)), generated_skill_code): # write_file expects relative path
+                skill_filepath = SkillManager.SKILLS_DIR / skill_filename 
+                if utils.write_file(str(skill_filepath.relative_to(utils.WORKSPACE_DIR)), generated_skill_code): 
                     print(f"✅ Skill '{new_skill_name}' saved to {skill_filepath}")
-                    skill_manager.refresh_skills() # Auto-refresh to load the new skill
+                    skill_manager.refresh_skills() 
                 else:
                     print(f"❌ Failed to save skill '{new_skill_name}'.")
             else:
@@ -688,31 +695,27 @@ def start_cli_loop():
 
     # Proactive Learning Command
     def handle_learn_suggestions(args):
-        """
-        Analyzes user feedback and profile to provide proactive suggestions.
-        """
-        # Check if the ProactiveLearner class is the fallback version
         if not proactive_learner_instance:
             print("❌ ProactiveLearner module could not be loaded. Suggestions unavailable.")
             return
         
         print("🧠 Attempting to generate proactive suggestions...")
         try:
-            # ProactiveLearner is now instantiated with the live user_profile
             suggestions = proactive_learner_instance.generate_suggestions()
 
             if suggestions:
                 print("\n--- Proactive Suggestions ---")
                 for i, suggestion in enumerate(suggestions):
                     if "No specific proactive suggestions" in suggestion and len(suggestions) == 1:
-                        print(f"   {suggestion}") # Neutral display for default message
+                        print(f"   {suggestion}") 
                     else:
                         print(f" {i+1}. {suggestion}")
                 print("---------------------------\n")
-            # ProactiveLearner returns a default message if no suggestions, so 'else' here is unlikely.
         except Exception as e:
             print(f"❌ Error generating suggestions: {e}")
             print("   Please ensure 'data/user_profile.json' is accessible and valid.")
+    register("learn suggestions", handle_learn_suggestions, "Analyzes feedback & profile for proactive suggestions.")
+
 
     # History Command
     def handle_history(args):
@@ -734,16 +737,13 @@ def start_cli_loop():
             else:
                 print("No command history found.")
         elif action == "analyze_patterns":
-            # Parameters for analysis could be added as args later
             patterns = pattern_analyzer.analyze_command_history()
             if patterns:
                 print("\n--- Potential Skill Candidates (Frequent Command Sequences) ---")
                 for seq, count in patterns:
                     print(f"  - Sequence: {', '.join(seq)} (Occurred {count} times)")
                 print("-------------------------------------------------------------\n")
-
                 
-                # Offer to create a skill from the top pattern
                 if patterns:
                     top_pattern_sequence, top_pattern_count = patterns[0]
                     print(f"[Proactive Suggestion] Would you like to try creating a skill from the most frequent pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times)?")
@@ -768,144 +768,71 @@ def start_cli_loop():
                             safe_skill_name_for_file = "".join(c if c.isalnum() else "_" for c in new_skill_name).lower()
                             skill_filename = f"{safe_skill_name_for_file}_skill.py"
                             relative_skill_path = SKILLS_DIR.relative_to(utils.WORKSPACE_DIR) / skill_filename
-                            if utils.write_file(str(relative_skill_path), generated_skill_code): # write_file expects relative path
+                            if utils.write_file(str(relative_skill_path), generated_skill_code): 
                                 print(f"✅ Skill '{new_skill_name}' saved to {SKILLS_DIR / skill_filename}")
-                                skill_manager.refresh_skills() # Auto-refresh to load the new skill
+                                skill_manager.refresh_skills() 
                             else:
                                 print(f"❌ Failed to save skill '{new_skill_name}'.")
 
-            # Message if no patterns found is handled by analyze_command_history itself
-
     register("history", handle_history, "Views command history.")
-    # --- Load Plugins ---
-
-    # Genesis Mode Commands (Initial Placeholder)
+    
+    # --- Genesis Mode Commands ---
     def handle_genesis(args):
-        if not args or args[0].lower() not in ["log", "start"]:
-            print("Usage: genesis <log|start> [options...]")
-            print("  genesis log <project_name> \"<initial_brief>\"")
-            print("  genesis start \"<your initial project idea>\"")
-            return
-
-        action = args[0].lower()
-        if action == "log":
-            if len(args) < 3:
-                print("Usage: genesis log <project_name> \"<initial_brief>\"")
-                return
-
-            project_name_arg = args[1]
-            # The brief might be quoted and contain spaces.
-            # shlex.split might be better here if more args are added later.
-            initial_brief_arg = " ".join(args[2:]) # Brief is the rest of the arguments
-            
-            # Placeholder for actual settings that will be gathered during Genesis Mode
-            placeholder_settings = {
-                "readme_style": style_manager_for_cli.get_preference("readme.default_style", "standard"),
-                "roadmap_format": style_manager_for_cli.get_preference("roadmap.default_format", "phase_based"),
-                "tone": style_manager_for_cli.get_preference("general_tone", "neutral")
-            }
-
-            genesis_logger_cli.log_project_creation(
-                project_name=project_name_arg,
-                initial_brief=initial_brief_arg,
-                genesis_settings_used=placeholder_settings,
-                workspace_type="local_placeholder", # Will be dynamic
-                workspace_location=f"./{project_name_arg.replace(' ', '_')}_placeholder" # Will be dynamic
-            )
-        elif action == "start":
-            if len(args) < 2:
-                print("Usage: genesis start \"<your initial project idea>\"")
-                return
-            
-            initial_idea = " ".join(args[1:]) # The idea is everything after "start"
-            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
-            print("   The Idea Interpreter will now ask clarifying questions...")
-            
-            # Call the IdeaInterpreter
-            clarified_brief_data = idea_interpreter_cli.interpret_idea(initial_idea)
-            
-            print("\n--- Clarified Project Brief (Initial Pass) ---")
-            print(json.dumps(clarified_brief_data, indent=2))
-            print("----------------------------------------------\n")
-            print("Next steps in Genesis Mode will use this brief to generate documents and scaffold the project.")
-    register("genesis", handle_genesis, "Manages Genesis Mode operations (e.g., logging project creation).")
-    # This is the new handle_genesis function for ui/cli.py
-    def handle_genesis(args):
-        if not args or args[0].lower() not in ["start", "generate-readme", "generate-roadmap"]:
-            print("Usage: genesis <start|generate-readme|generate-roadmap>")
-            print("  log <name> \"<brief>\"   - (Dev) Log a manual project creation.") # Kept from previous context if relevant
+        valid_subcommands = ["start", "generate-readme", "generate-roadmap", "scaffold", "publish", "random", "log"]
+        if not args or args[0].lower() not in valid_subcommands:
+            print("Usage: genesis <subcommand> [options...]")
+            print(f"Valid subcommands: {', '.join(valid_subcommands)}")
             print("  start \"<idea>\"           - Begin the interactive idea interpretation.")
-            print("  generate-readme          - Generate a README.md from the last session.")
-            print("  generate-roadmap         - Generate a roadmap.md from the last session.")
+            print("  random                     - Generate a random, weird idea and start interpretation.")
+            print("  generate-readme          - Generate a README.md from the last brief.")
+            print("  generate-roadmap         - Generate a roadmap.md from the last brief.")
+            print("  scaffold                   - Scaffold a local project from the last brief.")
+            print("  publish                    - Create a GitHub repo from the last brief.")
+            print("  log <name> \"<brief>\"   - (Dev) Log a manual project creation.")
             return
+        
+        subcommand = args[0].lower()
 
-        action = args[0].lower()
-        if action == "start":
-            # This 'start' logic is from your existing file context
+        if subcommand == "start":
             if len(args) < 2:
                 print("Usage: genesis start \"<your initial project idea>\"")
                 return
-
             initial_idea = " ".join(args[1:])
-            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
-
-            questions = idea_interpreter_cli.start_interpretation_session(initial_idea)
-            if not questions:
-                print("\n❌ Error: Could not start the interpretation session. The LLM might be unavailable.")
-                return
-
-            print("\n🤖 The Giblet asks:\n")
-            print(questions)
-            print("\n> Provide your answers below. Type 'EOF' or press Ctrl+D on a new line when you're done.")
-            user_answers_lines = []
-            while True:
-                try:
-                    line = input()
-                    if line.strip().upper() == "EOF":
-                        break
-                    user_answers_lines.append(line)
-                except EOFError:
-                    break
-            user_answers = "\n".join(user_answers_lines)
-            if not user_answers.strip():
-                print("\n❌ No answer provided. Aborting Genesis session.")
-                return
-
-            print("\nAnalysing your answers and synthesizing the project brief...")
-            result = idea_interpreter_cli.submit_answer_and_continue(user_answers)
-            if result.get("status") == "complete":
-                final_brief = result.get("data", {})
-                memory.remember("last_genesis_brief", final_brief)
-                print("\n--- ✅ Genesis Complete: Synthesized Project Brief ---")
-                print(json.dumps(final_brief, indent=2))
-                print("----------------------------------------------------\n")
-                print("Next steps: Use `genesis generate-readme` or `genesis generate-roadmap`.")
-            else:
-                print(f"\n❌ An error occurred during synthesis: {result.get('message', 'Unknown error.')}")
+            _run_genesis_interview(initial_idea, idea_interpreter_cli, memory)
         
-        elif action == "generate-readme":
+        elif subcommand == "random":
+            print("🎲 Summoning a strange and wonderful new project idea...")
+            try:
+                response = httpx.post("http://localhost:8000/ideas/random_weird", timeout=60)
+                response.raise_for_status()
+                data = response.json()
+                random_idea = data.get("idea")
+                
+                if random_idea:
+                    _run_genesis_interview(random_idea, idea_interpreter_cli, memory)
+                else:
+                    print("❌ The API did not return a random idea.")
+            except Exception as e:
+                print(f"❌ Failed to get a random idea from the API: {e}")
+
+        elif subcommand == "generate-readme":
             print("\nGenerating Project README...")
             last_brief = memory.recall("last_genesis_brief")
-            if not isinstance(last_brief, dict) or not last_brief: # Check if it's a dict and not empty
+            if not isinstance(last_brief, dict) or not last_brief:
                 print("❌ No project brief found in memory. Please run `genesis start` first.")
                 return
             
-            # Get the style settings that will be used for generation
-            # Ensure style_manager_for_cli is accessible here (it is, from start_cli_loop scope)
             current_readme_style_settings = style_manager_for_cli.get_style().get('readme', {})
-            
             readme_content = readme_generator_cli.generate(last_brief)
             print("\n--- Generated README.md ---\n")
             print(readme_content)
             print("\n---------------------------\n")
 
-            # --- REFLECTIVE PROMPT ---
-            if current_readme_style_settings: # Only ask if there are settings to save
+            if current_readme_style_settings:
                 save_style_confirm = input("Save this README style as your default? (y/n): ").lower()
                 if save_style_confirm == 'y':
                     try:
                         payload = {"category": "readme", "settings": current_readme_style_settings}
-                        # Ensure httpx is imported and accessible
                         response = httpx.post("http://localhost:8000/style/set_preferences", json=payload, timeout=10)
                         response.raise_for_status()
                         print("✅ README style preferences saved as default!")
@@ -916,27 +843,18 @@ def start_cli_loop():
             
             save_file_confirm = input("Save this content to README.md? (y/n): ").lower()
             if save_file_confirm == 'y':
-                if utils.write_file("README.md", readme_content): # Ensure utils is accessible
+                if utils.write_file("README.md", readme_content):
                     print("✅ README.md saved successfully!")
                 else:
                     print("❌ Failed to save README.md.")
             else:
                 print("Save to file cancelled.")
 
-        elif action == "generate-roadmap":
-            # (This subcommand would be updated with similar reflective logic)
-            # This 'generate-roadmap' logic is from your existing file context
-            if len(args) < 2:
-                print("Usage: genesis start \"<your initial project idea>\"")
-                return
-
-            initial_idea = " ".join(args[1:])
-            print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
-
+        elif subcommand == "generate-roadmap":
             print("\nGenerating Project Roadmap...")
             last_brief = memory.recall("last_genesis_brief")
 
-            if not isinstance(last_brief, dict) or not last_brief: # Check if it's a dict and not empty
+            if not isinstance(last_brief, dict) or not last_brief:
                 print("❌ No project brief found in memory. Please run `genesis start` first.")
                 return
             
@@ -944,10 +862,6 @@ def start_cli_loop():
             print("\n--- Generated roadmap.md ---\n")
             print(roadmap_content)
             print("\n----------------------------\n")
-            
-            # Placeholder for reflective prompt for roadmap style
-            # save_roadmap_style_confirm = input("Save this roadmap style as your default? (y/n): ").lower()
-            # if save_roadmap_style_confirm == 'y': ...
             
             save_confirm = input("Save this content to roadmap.md? (y/n): ").lower()
             if save_confirm == 'y':
@@ -958,34 +872,91 @@ def start_cli_loop():
             else:
                 print("Save cancelled.")
 
+        elif subcommand == "scaffold":
+            print("\n🏗️ Scaffolding local project...")
+            last_brief = memory.recall("last_genesis_brief")
+            if not isinstance(last_brief, dict) or not last_brief:
+                print("❌ No project brief found in memory. Please run `genesis start` first.")
+                return
+
+            project_name = last_brief.get("title", "new_giblet_project")
+            payload = {
+                "project_name": project_name,
+                "project_brief": last_brief
+            }
+
+            try:
+                response = httpx.post("http://localhost:8000/project/scaffold_local", json=payload, timeout=60)
+                response.raise_for_status()
+                data = response.json()
+                print(f"✅ {data.get('message', 'Local project scaffolded successfully.')}")
+                if data.get('path'):
+                     print(f"   Project path: {data.get('path')}")
+            except httpx.RequestError as e:
+                print(f"❌ API Request Failed: Could not connect to the Giblet API at http://localhost:8000. Is the server running?")
+            except httpx.HTTPStatusError as e:
+                 print(f"❌ API returned error: {e.response.status_code} - {e.response.text}")
+            except Exception as e:
+                print(f"❌ An unexpected error occurred during scaffolding: {e}")
+
+        elif subcommand == "publish":
+            print("\n☁️ Creating GitHub repository...")
+            last_brief = memory.recall("last_genesis_brief")
+            if not isinstance(last_brief, dict) or not last_brief:
+                print("❌ No project brief found in memory. Please run `genesis start` first.")
+                return
+
+            repo_name = last_brief.get("title", "new-giblet-project").lower().replace(" ", "-")
+            description = last_brief.get("summary", "A new project generated by The Giblet.")
+            payload = {"repo_name": repo_name, "description": description, "private": True}
+
+            try:
+                response = httpx.post("http://localhost:8000/project/create_github_repo", json=payload, timeout=60)
+                response.raise_for_status()
+                data = response.json()
+                print(f"✅ {data.get('message', 'GitHub repository created successfully.')}")
+            except Exception as e:
+                print(f"❌ Failed to create GitHub repository: {e}")
+
+        elif subcommand == "log":
+            if len(args) < 3:
+                print("Usage: genesis log <project_name> \"<initial_brief>\"")
+                return
+
+            project_name_arg = args[1]
+            initial_brief_arg = " ".join(args[2:])
+            
+            placeholder_settings = {
+                "readme_style": style_manager_for_cli.get_preference("readme.default_style", "standard"),
+                "roadmap_format": style_manager_for_cli.get_preference("roadmap.default_format", "phase_based"),
+                "tone": style_manager_for_cli.get_preference("general_tone", "neutral")
+            }
+
+            genesis_logger_cli.log_project_creation(
+                project_name=project_name_arg,
+                initial_brief=initial_brief_arg,
+                genesis_settings_used=placeholder_settings,
+            )
     register("genesis", handle_genesis, "Manages project genesis and document generation.")
 
     # --- Just-in-Time Proactive Suggestions Function ---
     def display_just_in_time_suggestions(last_command_name: str | None, last_args: list | None = None):
         if not proactive_learner_instance or not project_contextualizer_cli:
-            return # Dependencies not available
+            return 
         if last_args is None:
             last_args = []
 
         jit_suggestions = []
 
-        # Contextual suggestions based on last command and project state
         if last_command_name == "git status":
-            # This requires GitAnalyzer to expose a method to check for uncommitted changes easily.
-            # For now, we'll assume a hypothetical check.
-            # if git_analyzer.has_uncommitted_changes(): # Hypothetical method
-            #     jit_suggestions.append("💡 Quick Tip: Uncommitted changes detected. Consider `git add .` and `git commit -m \"your message\"`.")
-            pass # Placeholder for more specific git status related suggestions
+            pass 
 
         elif last_command_name == "generate function":
-            last_file_written = memory.recall('last_file_written') # Assuming generate function might imply a file context
-            # More accurately, we'd need to know if the generated function was written to a file.
-            # For now, this is a general suggestion after generating a function.
+            last_file_written = memory.recall('last_file_written') 
             jit_suggestions.append("💡 Quick Tip: Generated a function? Consider writing tests with `generate tests <filepath>` or refactoring with `refactor <filepath> \"instruction\"`.")
 
         elif last_command_name == "plan":
-
-            if memory.recall('last_plan'): # Check if a plan was successfully created
+            if memory.recall('last_plan'): 
                 jit_suggestions.append("💡 Quick Tip: Plan created! Use `execute` to run it.")
 
         elif last_command_name == "read" and last_args and last_args[0].endswith(".py"):
@@ -1001,20 +972,17 @@ def start_cli_loop():
             current_focus_text = " ".join(last_args)
             jit_suggestions.append(f"💡 Quick Tip: Focus set to '{current_focus_text}'. You can now use `plan \"achieve my focus\"` or generate ideas with `idea about my current focus`.")
 
-
-        # Fallback to general suggestions from ProactiveLearner if no contextual ones were added
         if not jit_suggestions:
             learner_suggestions = proactive_learner_instance.generate_suggestions()
             if learner_suggestions and not ("No specific proactive suggestions" in learner_suggestions[0] and len(learner_suggestions) ==1) :
-                jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}") # Show one general tip
+                jit_suggestions.append(f"💡 Quick Tip: {learner_suggestions[0]}") 
 
         if jit_suggestions:
-            print("\n" + "\n".join(list(set(jit_suggestions)))) # Use set to avoid duplicate suggestions
+            print("\n" + "\n".join(list(set(jit_suggestions)))) 
 
     for plugin in plugin_manager.plugins:
         plugin.register_commands(command_manager)
 
-    # DEBUG: Print all registered commands before starting the loop
     print("\n[DEBUG] Registered commands before main loop:")
     if command_manager.commands:
         for cmd_name in sorted(command_manager.commands.keys()):
@@ -1026,48 +994,42 @@ def start_cli_loop():
     print("🧠 The Giblet is awake. All commands registered. Type 'help' for a list of commands.")
     
     command_execution_count = 0
-    PROACTIVE_ANALYSIS_THRESHOLD = 5 # Analyze patterns every N commands
-    JIT_SUGGESTION_THRESHOLD = 2 # Offer JIT suggestions more frequently
+    PROACTIVE_ANALYSIS_THRESHOLD = 5 
+    JIT_SUGGESTION_THRESHOLD = 2 
 
     while True:
         try:
-            # Dynamic prompt logic...
             current_focus = memory.recall("current_focus")
             prompt_text = f" giblet [focus: {current_focus[:20]}...]>" if current_focus and isinstance(current_focus, str) and not current_focus.startswith("I don't have a memory for") else f" giblet [branch: {git_analyzer.repo.active_branch.name}]>" if git_analyzer.repo else " giblet> "
             
             user_input = input(prompt_text).strip()
             if not user_input: continue
 
-            # Simplified parsing
             parts = user_input.split(" ", 1)
             command_name = parts[0].lower()
             
-            # Handle multi-word commands like 'learn suggestions' or 'assess model'
             potential_multi_word_command = command_name
             temp_args_str = parts[1] if len(parts) > 1 else ""
             
-            # Check for two-word commands
             if temp_args_str:
                 first_arg = temp_args_str.split(" ", 1)[0]
                 if f"{command_name} {first_arg}" in command_manager.commands:
                     command_name = f"{command_name} {first_arg}"
                     args_str = temp_args_str.split(" ", 1)[1] if " " in temp_args_str else ""
-                    args = shlex.split(args_str) # Use shlex for better arg parsing
+                    args = shlex.split(args_str) 
                 else:
-                    args = shlex.split(temp_args_str) # Use shlex for better arg parsing
+                    args = shlex.split(temp_args_str) 
             else:
                 args = []
             
             executed_command_name = command_name 
-            executed_args = args # Store args for JIT suggestions
+            executed_args = args 
             command_manager.execute(executed_command_name, executed_args)
             command_execution_count += 1
 
-            # Proactive skill suggestion based on patterns
             if command_execution_count % PROACTIVE_ANALYSIS_THRESHOLD == 0:
                 patterns = pattern_analyzer.analyze_command_history(min_len=2, max_len=3, min_occurrences=3) 
                 if patterns:
-                    # Inline logic for proactively suggesting skill creation from patterns
                     if patterns:
                         top_pattern_sequence, top_pattern_count = patterns[0]
                         print(f"[Proactive Suggestion] Would you like to try creating a skill from the most frequent pattern: `{' -> '.join(top_pattern_sequence)}` (used {top_pattern_count} times)?")
@@ -1094,22 +1056,9 @@ def start_cli_loop():
                                 else:
                                     print(f"❌ Failed to save skill '{new_skill_name}'.")
             
-            # Just-in-Time general suggestions
             if command_execution_count % JIT_SUGGESTION_THRESHOLD == 0:
                 display_just_in_time_suggestions(executed_command_name, executed_args)
 
         except KeyboardInterrupt:
             print("\n🧠 Going to sleep. Goodbye!")
-            break # Exit the while True loop
-
-    # The following code (plugin registration, debug print) was duplicated.
-    # It should be outside the while loop, or if intended per loop, handled differently.
-    # Given its nature, it seems like it was a copy-paste error and should only be before the loop.
-    # I'm removing the duplicated block that was inside the loop.
-    print("\n[DEBUG] Registered commands before main loop:")
-    if command_manager.commands:
-        for cmd_name in sorted(command_manager.commands.keys()):
-            print(f"  - {cmd_name}")
-    else:
-        print("  - No commands registered in CommandManager.")
-    print("[DEBUG] End of registered commands list.\n")
+            break 

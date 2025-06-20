@@ -538,10 +538,10 @@ python main.py
 ## Phase 24: 📂 The Project Scaffolder
     **Goal:** Create the functionality to build the actual project workspace, either locally or on GitHub.
     **Tasks:**
-        * [ ] **Task 24.1: Implement `github_client.py`:** Build the module for securely authenticating with the GitHub API (using a GITHUB_TOKEN) and creating new repositories.
-        * [ ] **Task 24.2: Implement `project_scaffold.py`:** Create the module responsible for creating the local directory structure, including any default files like `.gitignore` or `requirements.txt`.
-        * [ ] **Task 24.3: Build the "Workspace Builder" UI:** In the Genesis tab, after the documents are approved, present the user with the choice ("Local Folder" or "Create GitHub Repo") and use the appropriate backend module to execute their choice.
-* [ ] **Task 24.4: Reflect and Evaluate Phase Outcomes**
+        * [x] **Task 24.1: Implement `github_client.py`:** Build the module for securely authenticating with the GitHub API (using a GITHUB_TOKEN) and creating new repositories.
+        * [x] **Task 24.2: Implement `project_scaffold.py`:** Create the module responsible for creating the local directory structure, including any default files like `.gitignore` or `requirements.txt`.
+        * [x] **Task 24.3: Build the "Workspace Builder" UI:** In the Genesis tab, after the documents are approved, present the user with the choice ("Local Folder" or "Create GitHub Repo") and use the appropriate backend module to execute their choice.
+* [x] **Task 24.4: Reflect and Evaluate Phase Outcomes**
     * Ensure project scaffolding works reliably for both local and GitHub projects.
 
 ---

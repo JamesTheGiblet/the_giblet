@@ -77,12 +77,50 @@ def main():
                 st.markdown(message["content"])
 
         if not st.session_state.genesis_session_active and not st.session_state.genesis_final_brief:
-            initial_idea_input = st.text_area("Enter your initial project idea to begin:", height=100, key="genesis_initial_idea_input",
-                                        help="e.g., 'A mobile app to identify plants using the phone camera.'")
+            # --- Input area for user's idea OR random idea generation ---
+            col1, col2 = st.columns([3, 1])
+
+            with col1:
+                initial_idea_input = st.text_area("Enter your initial project idea to begin:", height=100, key="genesis_initial_idea_input",
+                                            help="e.g., 'A mobile app to identify plants using the phone camera.'")
+
+            with col2:
+                st.write("") # Spacer to align button
+                st.write("") # Spacer to align button
+                if st.button("🎲 Surprise Me!", use_container_width=True, help="Generate a random, weird project idea to start with.", key="surprise_me_btn"):
+                    with st.spinner("Summoning a strange idea..."):
+                        try:
+                            response_random_idea = httpx.post("http://localhost:8000/ideas/random_weird", timeout=60)
+                            response_random_idea.raise_for_status()
+                            data_random_idea = response_random_idea.json()
+                            random_idea = data_random_idea.get("idea")
+                            
+                            if random_idea:
+                                # Automatically start the session with the random idea using the /genesis/start endpoint
+                                response_genesis_start = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": random_idea}, timeout=60)
+                                response_genesis_start.raise_for_status()
+                                data_genesis_start = response_genesis_start.json()
+
+                                if data_genesis_start.get("error"):
+                                    st.error(f"Failed to start interpretation with random idea: {data_genesis_start['error']}")
+                                else:
+                                    questions = data_genesis_start.get("questions")
+                                    st.session_state.genesis_conversation = [] # Clear old conversation
+                                    st.session_state.genesis_final_brief = None
+                                    st.session_state.genesis_conversation.append({"role": "user", "content": f"My random idea: {random_idea}"})
+                                    st.session_state.genesis_conversation.append({"role": "assistant", "content": questions})
+                                    st.session_state.genesis_session_active = True
+                                    st.rerun()
+                            else:
+                                st.error("The API did not return a random idea.")
+
+                        except Exception as e:
+                            st.error(f"Failed to get or process a random idea: {e}")
+
+            # Button to start interpretation with manually entered idea
             if st.button("🚀 Start Interpretation", key="start_genesis_interpretation_btn"):
                 if initial_idea_input.strip():
                     with st.spinner("Interpreter is preparing questions..."):
-                        # This would now be an API call
                         try:
                             response = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": initial_idea_input}, timeout=60)
                             response.raise_for_status()
@@ -90,16 +128,17 @@ def main():
                             if data.get("error"):
                                 st.error(f"Failed to start interpretation: {data['error']}")
                             else:
-                                questions = data.get("questions")
+                                questions_manual = data.get("questions")
+                                st.session_state.genesis_conversation = [] # Clear if any previous random attempt failed partway
+                                st.session_state.genesis_final_brief = None
                                 st.session_state.genesis_conversation.append({"role": "user", "content": f"My idea: {initial_idea_input}"})
-                                st.session_state.genesis_conversation.append({"role": "assistant", "content": questions})
+                                st.session_state.genesis_conversation.append({"role": "assistant", "content": questions_manual})
                                 st.session_state.genesis_session_active = True
                                 st.rerun()
                         except Exception as e:
                             st.error(f"API Request Failed (Genesis Start): {e}")
                 else:
                     st.warning("Please enter an initial idea.")
-
         if st.session_state.genesis_session_active:
             user_answer = st.chat_input("Your answer:", key="genesis_user_answer")
             if user_answer:
