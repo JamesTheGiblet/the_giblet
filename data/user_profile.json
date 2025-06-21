@@ -1,0 +1,33 @@
+{
+    "preferences": {
+        "ai_verbosity": "medium",
+        "ai_tone": "neutral",
+        "idea_synth_persona": "innovator"
+    },
+    "feedback_log": [
+        {
+            "timestamp": "2023-10-27T10:00:00Z",
+            "context_id": "code_generation_feature_x",
+            "rating": 1,
+            "comment": "Output was too complex and buggy."
+        },
+        {
+            "timestamp": "2023-10-27T11:00:00Z",
+            "context_id": "idea_synthesis_alpha",
+            "rating": 5,
+            "comment": "Very detailed and creative ideas!"
+        },
+        {
+            "timestamp": "2023-10-28T10:00:00Z",
+            "context_id": "code_generation_feature_x",
+            "rating": 2,
+            "comment": "Still not quite right."
+        },
+        {
+            "timestamp": "2023-10-29T10:00:00Z",
+            "context_id": "code_generation_feature_x",
+            "rating": 2,
+            "comment": "Needs more work on clarity."
+        }
+    ]
+}

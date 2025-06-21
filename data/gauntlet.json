@@ -1,0 +1,114 @@
+{
+    "code_generation": [
+      {
+        "level": 1,
+        "prompt": "a basic Python function named `add` that takes two integers, `a` and `b`, and returns their sum.",
+        "validation_test": "def test_add():\n assert add(2, 3) == 5\n assert add(-1, 1) == 0"
+      },
+      {
+        "level": 2,
+        "prompt": "a Python function named `is_palindrome` that takes a string and returns `True` if it's a palindrome and `False` otherwise. It should be case-insensitive and ignore spaces.",
+        "validation_test": "def test_is_palindrome():\n assert is_palindrome('A man a plan a canal Panama') == True\n assert is_palindrome('hello') == False"
+      },
+      {
+        "level": 3,
+        "prompt": "a recursive Python function named `factorial` that calculates the factorial of a non-negative integer.",
+        "validation_test": "def test_factorial():\n assert factorial(5) == 120\n assert factorial(0) == 1"
+      },
+      {
+        "level": 4,
+        "prompt": "a Python function named `fibonacci` that returns the `n`th Fibonacci number using memoization.",
+        "validation_test": "def test_fibonacci():\n assert fibonacci(10) == 55\n assert fibonacci(1) == 1"
+      },
+      {
+        "level": 5,
+        "prompt": "a Python class `BankAccount` with `deposit`, `withdraw`, and `get_balance` methods. Balance should never go negative.",
+        "validation_test": "def test_bank_account():\n acc = BankAccount()\n acc.deposit(100)\n acc.withdraw(30)\n assert acc.get_balance() == 70\n acc.withdraw(100)\n assert acc.get_balance() == 70"
+      },
+      {
+        "level": 6,
+        "prompt": "a Python function named `parse_csv` that takes a CSV string and returns a list of dictionaries assuming the first row is the header.",
+        "validation_test": "def test_parse_csv():\n csv = 'name,age\\nAlice,30\\nBob,25'\n result = parse_csv(csv)\n assert result == [{'name': 'Alice', 'age': '30'}, {'name': 'Bob', 'age': '25'}]"
+      },
+      {
+        "level": 7,
+        "prompt": "a Python decorator named `timed` that prints the execution time of any function it decorates.",
+        "validation_test": "import time\n@timed\ndef slow():\n time.sleep(0.1)\nslow()  # Should print execution time"
+      }
+    ],
+    "json_adherence": [
+      {
+        "level": 1,
+        "prompt": "Return a JSON object with two keys: 'name' set to 'The Giblet' and 'version' set to 0.1. Only return the JSON object, nothing else.",
+        "validation_type": "is_json_exact",
+        "expected_json": { "name": "The Giblet", "version": 0.1 }
+      },
+      {
+        "level": 2,
+        "prompt": "Return a JSON object with nested structure: a key 'metadata' with 'author' as 'GibletAI' and 'version' as '1.0'.",
+        "validation_type": "is_json_exact",
+        "expected_json": { "metadata": { "author": "GibletAI", "version": "1.0" } }
+      },
+      {
+        "level": 3,
+        "prompt": "Return a JSON array of 3 objects, each representing a user with 'id', 'name', and 'active' boolean fields.",
+        "validation_type": "is_json_exact",
+        "expected_json": [
+          { "id": 1, "name": "Alice", "active": true },
+          { "id": 2, "name": "Bob", "active": false },
+          { "id": 3, "name": "Charlie", "active": true }
+        ]
+      }
+    ],
+    "context_window_recall": [
+      {
+        "level": 1,
+        "id": "ctx_recall_lvl1",
+        "prompt_template": "Here is a lot of text to remember. The special code is {needle}. Now, tell me, what is the special code mentioned in the text you just read? Only respond with the special code. The text also includes this filler: {haystack}",
+        "needle": "BLUEPENGUIN7",
+        "haystack_size_kb": 1,
+        "validation_type": "exact_match_needle"
+      },
+      {
+        "level": 2,
+        "id": "ctx_recall_lvl2",
+        "prompt_template": "Deep within this document, there is a critical piece of information. That information is: {needle}. Please identify and return only this critical piece of information. The document contains various sections, including: {haystack}",
+        "needle": "QUANTUMLEAPFROG",
+        "haystack_size_kb": 4,
+        "validation_type": "exact_match_needle"
+      },
+      {
+        "level": 3,
+        "id": "ctx_recall_lvl3",
+        "prompt_template": "Buried in the following extensive report is a unique identifier: {needle}. Your task is to find and state this identifier and nothing else. The report covers many topics, such as: {haystack}",
+        "needle": "GALACTICSQUIRREL",
+        "haystack_size_kb": 8,
+        "validation_type": "exact_match_needle"
+      }
+    ],
+    "instruction_following": [
+      {
+        "level": 1,
+        "id": "instr_follow_lvl1",
+        "prompt": "Describe a red apple in exactly 15 words. Start your description with the phrase 'An apple is'. Do not use the letter 'e'.",
+        "validation_type": "multi_constraint_check",
+        "constraints": [
+          {"type": "word_count_exact", "value": 15},
+          {"type": "starts_with", "value": "An apple is"},
+          {"type": "not_contains_char", "value": "e"}
+        ]
+      },
+      {
+        "level": 2,
+        "id": "instr_follow_lvl2",
+        "prompt": "Write a short poem about a cat. The poem must have exactly 3 lines. The second line must contain the word 'moon'. The poem must not rhyme. Output the poem as a JSON object with a single key 'poem' whose value is a list of strings (each string being a line of the poem).",
+        "validation_type": "multi_constraint_check",
+        "constraints": [
+          {"type": "json_parsable"},
+          {"type": "json_has_key", "key": "poem", "value_type": "list"},
+          {"type": "list_length_exact", "json_path": "poem", "value": 3},
+          {"type": "list_item_contains_text", "json_path": "poem", "item_index": 1, "value": "moon"}
+        ]
+      }
+    ]
+  }

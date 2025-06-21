@@ -1,3 +1,12 @@
+fastapi
 google-generativeai
+GitPython
+httpx
+langchain
+langchain-ollama
 python-dotenv
 pytest
+redis
+streamlit
+uvicorn[standard]
+watchdog

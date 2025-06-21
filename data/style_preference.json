@@ -1,0 +1,28 @@
+{
+    "readme": {
+        "default_style": "standard",
+        "default_tone": "professional",
+        "default_sections": [
+            "Overview",
+            "Features",
+            "Getting Started",
+            "Roadmap Link",
+            "Contributing"
+        ]
+    },
+    "roadmap": {
+        "default_format": "phase_based",
+        "default_tone": "neutral"
+    },
+    "project": {
+        "default_repo_visibility": "private",
+        "default_primary_language": "python",
+        "include_gitignore": true,
+        "include_license": "MIT"
+    },
+    "general_tone": "neutral",
+    "coding_style": {
+        "preferred_formatter": "black",
+        "docstring_format": "google"
+    }
+}
