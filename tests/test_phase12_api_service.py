@@ -5,11 +5,13 @@ from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
 from unittest.mock import patch
-from unittest.mock import MagicMock # Add MagicMock import
-# Ensure the api module can be imported
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from unittest.mock import MagicMock
+
+from core.llm_provider_base import LLMProvider # Add MagicMock import
+# Ensure the api module and its components can be imported
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent)) # Add this line if not already present
 try:
-    from api import app, memory
+    from api import app, memory, idea_synth_for_api, code_generator # Import the instances
 except (ImportError, ModuleNotFoundError) as e:
     pytest.fail(f"Could not import the FastAPI 'app' or 'memory' from api.py. Error: {e}")
 
@@ -29,16 +31,16 @@ def mock_llm_calls(monkeypatch):
     # Default return value, can be overridden in tests
     master_mock_generate_text.return_value = '["mocked plan step 1"]'
 
-    def side_effect_for_provider_generate_text(*args, **kwargs):
-        return master_mock_generate_text(*args, **kwargs)
+    # Create a mock LLM provider instance
+    mock_llm_provider_instance = MagicMock(spec=LLMProvider)
+    mock_llm_provider_instance.is_available.return_value = True
+    mock_llm_provider_instance.generate_text.side_effect = master_mock_generate_text
 
-    with patch('core.llm_providers.GeminiProvider.generate_text', side_effect=side_effect_for_provider_generate_text) as mock_gemini_gen, \
-         patch('core.llm_providers.OllamaProvider.generate_text', side_effect=side_effect_for_provider_generate_text) as mock_ollama_gen, \
-         patch('core.llm_providers.GeminiProvider.is_available', return_value=True) as mock_gemini_available, \
-         patch('core.llm_providers.OllamaProvider.is_available', return_value=True) as mock_ollama_available:
-        
-        # Yield the master mock so tests can configure its return_value and assert calls
-        yield master_mock_generate_text
+    # Patch the llm_provider attribute of the actual instances used by the FastAPI app
+    monkeypatch.setattr(idea_synth_for_api, "llm_provider", mock_llm_provider_instance)
+    monkeypatch.setattr(code_generator, "llm_provider", mock_llm_provider_instance)
+
+    yield master_mock_generate_text # Yield the master mock for configuration and assertions
 
 def test_api_agent_plan_endpoint(mock_llm_calls):
     """

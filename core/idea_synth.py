@@ -1,6 +1,6 @@
 # core/idea_synth.py
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 # --- Core Module Imports ---
 from core.llm_provider_base import LLMProvider
@@ -8,6 +8,7 @@ from core.memory import Memory
 from core.user_profile import UserProfile
 from core.project_contextualizer import ProjectContextualizer
 from core.style_preference import StylePreferenceManager
+from core.skill_manager import SkillManager # Import SkillManager
 from core.llm_capabilities import LLMCapabilities # Retaining this for advanced functionality
 
 class IdeaSynthesizer:
@@ -32,7 +33,7 @@ class IdeaSynthesizer:
         else:
             print(f"⚠️ Idea Synthesizer: LLM provider {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'} is not available.")
 
-    def _construct_prompt(self, base_prompt: str, weird_mode: bool = False) -> str:
+    def _construct_prompt(self, base_prompt: str, weird_mode: bool = False, skill_manager: Optional[SkillManager] = None) -> str:
         """Constructs a detailed prompt for the LLM based on user profile and context."""
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         project_context_summary = self.contextualizer.get_full_context() # Use get_full_context for comprehensive context
@@ -47,19 +48,28 @@ class IdeaSynthesizer:
         else:
             idea_persona = self.user_profile.get_preference("llm_settings", "idea_synth_persona", "creative and helpful")
             prompt += f"Adopt the persona of a '{idea_persona}' assistant.\n"
+        
+        # Add available skills to the prompt if any
+        if skill_manager:
+            available_skills = skill_manager.list_skills()
+            if available_skills:
+                prompt += "\n\nConsider using these available skills:\n"
+                for skill in available_skills:
+                    prompt += f"- Skill Name: \"{skill['name']}\"\n"
+                    prompt += f"  Description: {skill['description']}\n"
 
         prompt += f"\nBased on all of this, please brainstorm ideas for the following topic: '{base_prompt}'\n"
         prompt += "CRITICAL: Return ONLY the raw idea itself, without any of your own conversational text, preamble, or formatting like 'Here's an idea:'."
         return prompt
 
-    def generate_ideas(self, prompt_text: str, weird_mode: bool = False) -> str:
+    def generate_ideas(self, prompt_text: str, weird_mode: bool = False, skill_manager: Optional[SkillManager] = None) -> str:
         """
         Generates ideas based on a prompt, optionally in "weird mode".
         """
         if not self.llm_provider or not self.llm_provider.is_available():
             return "Idea generation failed: LLM provider is not available."
 
-        full_prompt = self._construct_prompt(prompt_text, weird_mode)
+        full_prompt = self._construct_prompt(prompt_text, weird_mode, skill_manager)
 
         try:
             response = self.llm_provider.generate_text(

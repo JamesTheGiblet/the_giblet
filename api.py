@@ -28,6 +28,7 @@ from core.readme_generator import ReadmeGenerator # Already imported, keep
 from core.roadmap_generator import RoadmapGenerator # Already imported, keep
 from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
 from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
+from core.modularity_guardrails import ModularityGuardrails
 from core.readme_generator import ReadmeGenerator # Add near the top with other core imports
 from core.roadmap_generator import RoadmapGenerator # Add with other core imports
 
@@ -45,6 +46,7 @@ user_profile_instance = UserProfile(memory_system=memory) # Instantiate UserProf
 command_manager_for_api = command_manager.CommandManager(memory_system=memory)
 # command_manager is initialized here but has no commands registered by default.
 # For the /agent/execute endpoint to work, this command_manager needs relevant commands.
+modularity_guardrails = ModularityGuardrails()
 automator = Automator() # <<< NEW INSTANCE
 
 # Helper function to get the configured LLM provider
@@ -134,6 +136,13 @@ class GenerationRequest(BaseModel):
 class TestGenerationRequest(BaseModel):
     filepath: str
 
+class ModularityWarning(BaseModel):
+    filepath: str
+    message: str
+
+class ModularityWarningsResponse(BaseModel):
+    warnings: list[ModularityWarning]
+
 # --- Add these to your Pydantic Models ---
 class ScaffoldLocalRequest(BaseModel):
  project_name: str
@@ -180,10 +189,7 @@ class GitHubRepoRequest(BaseModel):
 class GitHubFileRequest(BaseModel):
     owner: str
     repo: str
-    tests_failed_initial: int = 0
-    fix_attempts: int = 0
-    self_correction_successful: bool | None = None
-    final_error: str | None = None
+    filepath: str
 
 # New Pydantic models for User Profile
 class ProfileSetRequest(BaseModel):
@@ -334,12 +340,33 @@ def refactor_code_endpoint(request: RefactorRequest):
 @app.post("/file/write")
 def write_file_endpoint(request: WriteFileRequest):
     """Safely writes content to a file."""
-    success = utils.write_file(request.filepath, request.content)
-    if success:
-        return {"message": "File updated successfully."}
-    else:
-        return {"error": "Failed to write file."}
+    if not request.filepath:
+        raise HTTPException(status_code=400, detail="Filepath cannot be empty.")
 
+    success = utils.write_file(request.filepath, request.content)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to write to file: {request.filepath}")
+
+    # --- Modularity Check Logic ---
+    try:
+        exceeds, line_count = modularity_guardrails.check_file_length(request.filepath)
+        warnings = memory.recall('modularity_warnings')
+        if not isinstance(warnings, dict):
+            warnings = {}
+
+        if exceeds:
+            warning_message = (
+                f"File '{request.filepath}' is now {line_count} lines long. "
+                "Consider refactoring it into smaller, more focused modules."
+            )
+            warnings[request.filepath] = warning_message
+        elif request.filepath in warnings:
+            # If the file was previously long but is now short, remove the warning
+            del warnings[request.filepath]
+        memory.remember('modularity_warnings', warnings)
+    except Exception as e:
+        print(f"[API Modularity] Error during check for {request.filepath}: {e}")
+    return {"message": "File updated successfully."}
 
 @app.get("/files/list")
 def list_files_endpoint():
@@ -518,6 +545,21 @@ def get_random_weird_idea_endpoint():
     
     return RandomIdeaResponse(idea=first_idea)
 
+@app.get("/modularity/warnings", response_model=ModularityWarningsResponse)
+def get_modularity_warnings():
+    """
+    Retrieves current modularity warnings from memory.
+    The dashboard can poll this endpoint to display non-intrusive warnings (e.g., toasts)
+    when files become excessively long.
+    """
+    warnings_dict = memory.recall('modularity_warnings')
+    if not isinstance(warnings_dict, dict):
+        warnings_dict = {}
+    
+    warnings_list = [
+        ModularityWarning(filepath=fp, message=msg) for fp, msg in warnings_dict.items()
+    ]
+    return ModularityWarningsResponse(warnings=warnings_list)
 
 # --- Skill API Endpoints ---
 @app.get("/skills/list")
@@ -525,10 +567,7 @@ def list_skills_endpoint():
     """Lists all available skills."""
     return {"skills": skill_manager_for_api.list_skills()}
 
-
-
 # --- Agent API Endpoints ---
-
 
 MAX_API_FIX_ATTEMPTS = 3
 
@@ -587,7 +626,7 @@ def agent_execute_plan_endpoint():
 
         if is_test_step and return_code != 0:
             tests_failed_count +=1
-            current_error_log = stdout + stderr
+            current_error_log = stdout + stderr # Capture initial error log
             # Use the API's instance of CommandManager
             current_return_code, retry_stdout, retry_stderr = command_manager_for_api.execute("exec", cmd_args)
 
@@ -611,8 +650,8 @@ def agent_execute_plan_endpoint():
                         has_actual_code = any(line.strip() and not line.strip().startswith("#") for line in fixed_code.splitlines())
                         if fixed_code and has_actual_code:
                             utils.write_file(file_to_test, fixed_code)
-                            print(f"   └─ [API] Applied potential fix to {file_to_test}. Retrying tests...")
-                            current_return_code, retry_stdout, retry_stderr = command_manager.execute("exec", cmd_args)
+                            print(f"   └─ [API] Applied potential fix to {file_to_test}. Retrying tests...") # Use command_manager_for_api consistently
+                            current_return_code, retry_stdout, retry_stderr = command_manager_for_api.execute("exec", cmd_args)
                             current_error_log = retry_stdout + retry_stderr
 
                             if current_return_code == 0:

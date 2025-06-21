@@ -1,9 +1,9 @@
 # core/agent.py
 
+import shlex
 from core.idea_synth import IdeaSynthesizer
 from core.code_generator import CodeGenerator
 from core.skill_manager import SkillManager
-import shlex
 import json
 
 class Agent:
@@ -31,7 +31,7 @@ class Agent:
         """
         Creates a multi-step plan to achieve a goal using `giblet` commands.
         """
-        prompt = f"""
+        planning_prompt = f"""
         You are an expert software development agent.
         Create a sequence of `giblet` CLI commands to accomplish the following high-level goal.
         The plan should be a list of command-line strings. Do not number the steps.
@@ -55,9 +55,16 @@ class Agent:
         """
         
         try:
-            raw_plan = self.idea_synth.generate_text(prompt)
-            plan_steps = [line.strip() for line in raw_plan.splitlines() if line.strip()]
-            cleaned_steps = [step.replace("giblet ", "", 1) for step in plan_steps]
+            raw_plan_str = self.idea_synth.generate_ideas(planning_prompt, skill_manager=self.skill_manager)
+            # The LLM might return a JSON list string or a newline-separated list.
+            # We try to parse JSON first for robustness.
+            try:
+                plan_steps = json.loads(raw_plan_str)
+                if not isinstance(plan_steps, list):
+                    raise json.JSONDecodeError("Not a list", raw_plan_str, 0)
+            except (json.JSONDecodeError, TypeError):
+                plan_steps = [line.strip() for line in raw_plan_str.splitlines() if line.strip()]
+            cleaned_steps = [str(step).replace("giblet ", "", 1).strip() for step in plan_steps]
             return cleaned_steps
         except Exception as e:
             return [f"Failed to generate plan: {e}"]

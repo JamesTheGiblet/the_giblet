@@ -1,4 +1,6 @@
 # ui/cli.py
+import argparse
+import os
 import json
 import logging
 import subprocess
@@ -30,6 +32,7 @@ from core.style_preference import StylePreferenceManager
 from core.genesis_logger import GenesisLogger
 from core.project_contextualizer import ProjectContextualizer
 from core.idea_interpreter import IdeaInterpreter
+from core.modularity_guardrails import ModularityGuardrails # Added import
 from core.mini_readme_generator import MiniReadmeGenerator
 from core.readme_generator import ReadmeGenerator
 from core.roadmap_generator import RoadmapGenerator
@@ -43,6 +46,7 @@ from ui.cli_genesis_commands import handle_genesis as handle_genesis_command # N
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
     from core.proactive_learner import ProactiveLearner
+    from core.modularity_guardrails import ModularityGuardrails # Re-import for clarity, though already imported
 except ImportError as e:
     print(f"Warning: ProactiveLearner module could not be loaded: {e}. Proactive suggestion features will be limited.")
     # Fallback for ProactiveLearner and UserProfilePlaceholder
@@ -542,6 +546,19 @@ def start_cli_loop():
     # <<< 4. REGISTER THE NEW COMMAND
     register("analyze duplicates", handle_analyze_duplicates, "Scans for duplicate code.")
 
+    # --- Modularity Guardrails Command ---
+    def handle_modularity(args):
+        if args.check:
+            project_root = os.getcwd() # Or get from a config/argument for multi-project support
+            guardrails = ModularityGuardrails()
+            long_files = guardrails.scan_project(project_root, args.ext, args.threshold)
+            suggestions = guardrails.suggest_refactoring(long_files)
+            print(suggestions)
+        else:
+            print("Usage: giblet modularity --check [--threshold <lines>] [--ext <.ext1> <.ext2>...]")
+    register("modularity", handle_modularity, "Checks for code modularity issues (e.g., long files).")
+
+    # --- Genesis Command ---
     def genesis_command_wrapper(args):
         """Wrapper to pass dependencies to the external genesis handler."""
         handle_genesis_command(

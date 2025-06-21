@@ -58,18 +58,23 @@ def mock_agent_for_skills():
     """Provides a mocked Agent instance for skill testing."""
     mock_llm = MagicMock(spec=LLMProvider)
     mock_llm.is_available.return_value = True
+    mock_llm.model_name = "mock-model-for-skills" # Explicitly set model_name
     
-    mock_idea_synth = MagicMock(spec=IdeaSynthesizer)
-    mock_idea_synth.llm_provider = mock_llm
+    # Create real instances of IdeaSynthesizer and CodeGenerator, but inject the mock LLM
+    mock_user_profile = MagicMock(spec=UserProfile)
+    mock_memory = MagicMock(spec=Memory)
+    mock_project_contextualizer = MagicMock()
+    mock_style_preference_manager = MagicMock()
+
+    idea_synth_instance = IdeaSynthesizer(user_profile=mock_user_profile, memory_system=mock_memory, llm_provider=mock_llm, project_contextualizer=mock_project_contextualizer, style_preference_manager=mock_style_preference_manager)
     
-    mock_code_gen = MagicMock(spec=CodeGenerator)
-    mock_code_gen.llm_provider = mock_llm
+    code_gen_instance = CodeGenerator(user_profile=mock_user_profile, memory_system=mock_memory, llm_provider=mock_llm, project_contextualizer=mock_project_contextualizer)
     
     mock_skill_manager = MagicMock(spec=SkillManager)
     
     dependencies = {
-        "idea_synth": mock_idea_synth,
-        "code_generator": mock_code_gen,
+        "idea_synth": idea_synth_instance,
+        "code_generator": code_gen_instance,
         "skill_manager": mock_skill_manager
     }
     return Agent(**dependencies)
@@ -111,16 +116,16 @@ def test_agent_skill_aware_planning(mock_agent_for_skills):
         {"name": "Greet", "description": "A simple skill to greet a user."}
     ]
     
-    # Mock the LLM to return a plan using the skill
-    # The idea_synth's generate_text method is called by agent.create_plan
-    agent.idea_synth.generate_text.return_value = json.dumps(['skill Greet name="Alice"'])
+    # Configure the mock LLM provider to return the raw JSON string that IdeaSynthesizer expects
+    mock_llm_provider = agent.idea_synth.llm_provider
+    mock_llm_provider.generate_text.return_value = json.dumps(['skill Greet name="Alice"'])
 
     plan = agent.create_plan("say hello to Alice")
     
     # Check that the planning prompt contained the skill info
-    agent.idea_synth.generate_text.assert_called_once()
-    call_args, call_kwargs = agent.idea_synth.generate_text.call_args
-    prompt = call_kwargs.get('prompt', call_args[0] if call_args else "") # Get prompt from kwargs or args
+    mock_llm_provider.generate_text.assert_called_once()
+    call_args, call_kwargs = mock_llm_provider.generate_text.call_args
+    prompt = call_kwargs.get('prompt', call_args[0] if call_args else "")
     assert "Consider using these available skills" in prompt, "Prompt should list available skills." # Corrected assertion text
     assert "Skill Name: \"Greet\"" in prompt, "Prompt should include the Greet skill."
     

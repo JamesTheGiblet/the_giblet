@@ -2,8 +2,11 @@
 
 import pytest
 from pathlib import Path
+import json
 import sys
 from unittest.mock import MagicMock
+
+from core.llm_provider_base import LLMProvider
 
 # Ensure the core modules can be imported
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -12,7 +15,6 @@ from core.agent import Agent
 from core.idea_synth import IdeaSynthesizer
 from core.code_generator import CodeGenerator
 from core.skill_manager import SkillManager
-from core.llm_provider_base import LLMProvider
 
 # --- Mock Fixtures for Dependencies ---
 
@@ -47,7 +49,7 @@ def test_agent_creates_test_aware_plan(mock_agent_dependencies):
     mock_idea_synth = mock_agent_dependencies["idea_synth"]
     
     # Mock the LLM to return a plan that includes a 'generate tests' step
-    mock_idea_synth.generate_text.return_value = '["generate function \\"a function to add two numbers\\"","generate tests tests/test_add.py"]'
+    mock_idea_synth.generate_ideas.return_value = json.dumps(["generate function \"a function to add two numbers\"", "generate tests tests/test_add.py"])
     
     goal = "Create a function to add two numbers and then write tests for it"
     plan = agent.create_plan(goal)
@@ -81,4 +83,4 @@ def test_agent_self_correction_prompting(mock_agent_dependencies):
     
     assert buggy_code in prompt, "The prompt must contain the original buggy code."
     assert error_log in prompt, "The prompt must contain the error log from the failed test."
-    assert "fix" in prompt.lower(), "The prompt's instructions should indicate a fix is needed."
+    assert "corrected" in prompt.lower(), "The prompt's instructions should indicate a fix is needed."
