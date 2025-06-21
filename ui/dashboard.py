@@ -279,10 +279,14 @@ def main():
                 for phase_name, phase_tasks in phases.items():
                     with st.expander(f"**{phase_name}**", expanded=True):
                         for task_item in phase_tasks:
-                            is_complete = (task_item['status'] == 'complete')
-                            st.checkbox(task_item['description'], value=is_complete, disabled=True, key=f"task_{phase_name}_{task_item['description'][:20]}")
-        except Exception as e:
-            st.error(f"Could not load roadmap. Is the API server running? Error: {e}")
+                            is_complete = (task_item['status'] == 'complete') # Check if task is complete
+                            st.checkbox(task_item['description'], value=is_complete, disabled=True, key=f"task_{phase_name}_{task_item['description'][:20]}") # Display checkbox
+        except httpx.RequestError as e: # Catch specific request errors
+            st.error(f"Could not connect to the Giblet API server. Please ensure it is running at {api_client.base_url}. Error: {e}") # More specific error message
+        except httpx.HTTPStatusError as e: # Catch HTTP status errors
+            st.error(f"API returned an error status {e.response.status_code} when loading roadmap: {e.response.text}") # Display HTTP status error
+        except Exception as e: # Catch any other unexpected errors
+            st.error(f"An unexpected error occurred while loading the roadmap: {e}") # Generic error message
 
     elif st.session_state.active_tab == "🛠️ Agent & Generator":
         st.header("🛠️ Autonomous Agent & Code Generator")
