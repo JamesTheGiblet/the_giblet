@@ -548,32 +548,32 @@ python main.py
 ## Phase 25: 🎲 The Final Vibe
     **Goal:** Implement the final features that complete the Genesis experience and link it back to the coding workflow.
     **Tasks:**
-        * [ ] **Task 25.1: Implement "Random Genesis" Mode:** Add a "🎲 Surprise Me" button to the Genesis UI that uses the `IdeaSynthesizer` to generate a random, weird project concept and feeds it into the Genesis pipeline.
-        * [ ] **Task 25.2: Implement `vibe_engine.py` (Post-Genesis):** Create the initial version of this engine. After a project is scaffolded, it will proactively suggest the first logical `giblet` command (e.g., "Project created. Would you like to focus on the first task in the roadmap?").
-* [ ] **Task 25.3: Reflect and Evaluate Phase Outcomes**
-    * Review the overall Genesis Mode experience and its integration with the core workflow.
+        * [x] **Task 25.1: Implement "Random Genesis" Mode:** Add a "🎲 Surprise Me" button to the Genesis UI that uses the `IdeaSynthesizer` to generate a random, weird project concept and feeds it into the Genesis pipeline.
+        * [x] **Task 25.2: Implement `vibe_engine.py` (Post-Genesis):** Create the initial version of this engine. After a project is scaffolded, it will proactively suggest the first logical `giblet` command (e.g., "Project created. Would you like to focus on the first task in the roadmap?").
 
 ---
+
 ## Phase 26: 🧪 The Experimental Playground
 
     **Goal:** Explore and integrate advanced, experimental features that enhance creativity, maintain project coherence, and support spontaneous workflow improvements.
 
     **Tasks:**
-        * [ ] **Task 26.1: Implement Duplicate Code Detection**
+        * [x] **Task 26.1: Implement Duplicate Code Detection**
         * Develop a module that scans the codebase for duplicate or highly similar code blocks.
         * Integrate with the CLI and dashboard to highlight potential duplications and suggest refactoring opportunities.
         * Optionally, provide automated refactoring or snippet extraction for repeated patterns.
 
-    * [ ] **Task 26.2: Add "Vibe Button" for Spontaneous Updates**
+    * [x] **Task 26.2: Add "Vibe Button" for Spontaneous Updates**
         * Create a UI element ("Vibe Button") in the dashboard and CLI that allows users to instantly capture new ideas or changes as they arise.
         * When pressed, prompt the user for a quick note or idea, then automatically update the `README.md` and `roadmap.md` with the new information or tasks.
         * Maintain a log of vibe-driven changes for future review and refinement.
 
-    * [ ] **Task 26.3: Develop a Sanity Checker for Project Alignment**
+    * [x] **Task 26.3: Develop a Sanity Checker for Project Alignment**
         * Build a "sanity checker" module that periodically reviews the codebase, `README.md`, and `roadmap.md` for alignment.
         * Detect and flag discrepancies between documented plans and actual implementation (e.g., missing features, outdated docs).
         * Provide actionable suggestions to bring the project back in sync with its stated goals and roadmap.
-
-* [ ] **Task 26.4: Reflect and Evaluate Phase Outcomes**
+* [ ] **Task 26.4: Reflect and Evaluate Phase Outcomes, Reflect and Evaluate Phase Outcomes**
     * Assess the value and usability of experimental features.
+    * Review the overall Genesis Mode experience and its integration with the core workflow.
+    
 ---

@@ -3,9 +3,9 @@ import streamlit as st
 import httpx
 import sys
 from pathlib import Path
-import json # Add this
-import shlex # For parsing plan steps
-import subprocess # For launching the gauntlet editor
+import json
+import shlex
+import subprocess
 import difflib
 
 # This line ensures that the script can find your 'core' modules
@@ -13,11 +13,11 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from core.memory import Memory
 from core.user_profile import UserProfile
-from core.llm_provider_base import LLMProvider # Import base provider
-from core.llm_providers import GeminiProvider, OllamaProvider # Import specific providers
+from core.llm_provider_base import LLMProvider
+from core.llm_providers import GeminiProvider, OllamaProvider
 from core.style_preference import StylePreferenceManager
-from core.project_contextualizer import ProjectContextualizer # Import ProjectContextualizer
-from core.idea_interpreter import IdeaInterpreter # Import IdeaInterpreter
+from core.project_contextualizer import ProjectContextualizer
+from core.idea_interpreter import IdeaInterpreter
 # Note: Other direct core imports are removed as logic is now handled via API calls
 
 
@@ -38,23 +38,26 @@ def main():
         st.session_state.agent_plan = None
     if 'agent_execution_result' not in st.session_state:
         st.session_state.agent_execution_result = None
-    # Add other session state initializations as needed...
-    # For Genesis Mode
     if 'genesis_conversation' not in st.session_state:
         st.session_state.genesis_conversation = []
     if 'genesis_session_active' not in st.session_state:
         st.session_state.genesis_session_active = False
     if 'genesis_final_brief' not in st.session_state:
         st.session_state.genesis_final_brief = None
-    if 'generated_readme' not in st.session_state: # For README generation
+    if 'generated_readme' not in st.session_state:
         st.session_state.generated_readme = None
-    if 'generated_roadmap' not in st.session_state: # For ROADMAP generation
+    if 'generated_roadmap' not in st.session_state:
         st.session_state.generated_roadmap = None
+    # Add state for the new duplication analysis feature
+    if 'duplication_report' not in st.session_state:
+        st.session_state.duplication_report = None
+
 
     # --- Sidebar ---
     with st.sidebar:
         st.header("🚀 Quick Actions")
-        tab_names = ["🧬 Genesis Mode", "🗺️ Roadmap", "🛠️ Agent & Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "👤 Profile", "🎨 My Vibe"]
+        # Add the new "Code Analysis" tab
+        tab_names = ["🧬 Genesis Mode", "🗺️ Roadmap", "🛠️ Agent & Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "🔬 Code Analysis", "👤 Profile", "🎨 My Vibe"]
 
         for tab_name in tab_names:
             if st.button(tab_name, key=f"sidebar_nav_{tab_name.replace(' ', '_')}", use_container_width=True):
@@ -82,11 +85,11 @@ def main():
 
             with col1:
                 initial_idea_input = st.text_area("Enter your initial project idea to begin:", height=100, key="genesis_initial_idea_input",
-                                            help="e.g., 'A mobile app to identify plants using the phone camera.'")
+                                                help="e.g., 'A mobile app to identify plants using the phone camera.'")
 
             with col2:
-                st.write("") # Spacer to align button
-                st.write("") # Spacer to align button
+                st.write("") 
+                st.write("") 
                 if st.button("🎲 Surprise Me!", use_container_width=True, help="Generate a random, weird project idea to start with.", key="surprise_me_btn"):
                     with st.spinner("Summoning a strange idea..."):
                         try:
@@ -96,7 +99,6 @@ def main():
                             random_idea = data_random_idea.get("idea")
                             
                             if random_idea:
-                                # Automatically start the session with the random idea using the /genesis/start endpoint
                                 response_genesis_start = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": random_idea}, timeout=60)
                                 response_genesis_start.raise_for_status()
                                 data_genesis_start = response_genesis_start.json()
@@ -105,7 +107,7 @@ def main():
                                     st.error(f"Failed to start interpretation with random idea: {data_genesis_start['error']}")
                                 else:
                                     questions = data_genesis_start.get("questions")
-                                    st.session_state.genesis_conversation = [] # Clear old conversation
+                                    st.session_state.genesis_conversation = [] 
                                     st.session_state.genesis_final_brief = None
                                     st.session_state.genesis_conversation.append({"role": "user", "content": f"My random idea: {random_idea}"})
                                     st.session_state.genesis_conversation.append({"role": "assistant", "content": questions})
@@ -129,7 +131,7 @@ def main():
                                 st.error(f"Failed to start interpretation: {data['error']}")
                             else:
                                 questions_manual = data.get("questions")
-                                st.session_state.genesis_conversation = [] # Clear if any previous random attempt failed partway
+                                st.session_state.genesis_conversation = [] 
                                 st.session_state.genesis_final_brief = None
                                 st.session_state.genesis_conversation.append({"role": "user", "content": f"My idea: {initial_idea_input}"})
                                 st.session_state.genesis_conversation.append({"role": "assistant", "content": questions_manual})
@@ -145,7 +147,6 @@ def main():
                 st.session_state.genesis_conversation.append({"role": "user", "content": user_answer})
                 with st.spinner("Interpreter is processing your answer..."):
                     try:
-                        # This would now be an API call
                         response = httpx.post("http://localhost:8000/genesis/answer", json={"answer": user_answer}, timeout=120)
                         response.raise_for_status()
                         data = response.json()
@@ -162,7 +163,7 @@ def main():
                         st.rerun()
                     except Exception as e:
                         st.error(f"API Request Failed (Genesis Answer): {e}")
-                        st.session_state.genesis_session_active = False # End session on error
+                        st.session_state.genesis_session_active = False 
                         st.rerun()
 
 
@@ -170,12 +171,10 @@ def main():
             st.subheader("📝 Final Project Brief")
             st.json(st.session_state.genesis_final_brief)
 
-            # --- Document Generation ---
             col1, col2 = st.columns(2)
 
             with col1:
-                # README Generation UI
-                if 'generated_readme' not in st.session_state: # Should already be initialized above, but good for safety
+                if 'generated_readme' not in st.session_state:
                     st.session_state.generated_readme = None
 
                 if st.button("Generate Project README", key="generate_project_readme_btn", use_container_width=True):
@@ -189,10 +188,9 @@ def main():
                             st.error(f"Failed to generate README: {e}")
 
             with col2:
-                # ROADMAP Generation UI
-                if 'generated_roadmap' not in st.session_state: # Should already be initialized above
+                if 'generated_roadmap' not in st.session_state:
                     st.session_state.generated_roadmap = None
-                    
+                
                 if st.button("Generate Project Roadmap", key="generate_project_roadmap_btn", use_container_width=True):
                     with st.spinner("Generating style-aware roadmap..."):
                         try:
@@ -206,23 +204,18 @@ def main():
             if st.session_state.generated_readme:
                 with st.expander("Generated README.md", expanded=True):
                     st.markdown(st.session_state.generated_readme)
-                    # Existing save logic for the README.md file
                     if st.button("Save README.md to disk", key="save_readme_disk_btn"):
-                         with st.spinner("Saving..."):
-                            try:
-                                write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
-                                write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
-                                write_response.raise_for_status()
-                                st.success("✅ README.md saved successfully!", icon="📄") # Kept existing success message
-                            except Exception as e:
-                                st.error(f"Failed to save README.md: {e}")
+                            with st.spinner("Saving..."):
+                                try:
+                                    write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
+                                    write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                    write_response.raise_for_status()
+                                    st.success("✅ README.md saved successfully!", icon="📄")
+                                except Exception as e:
+                                    st.error(f"Failed to save README.md: {e}")
 
-                    # --- Reflective Prompt UI ---
                     st.info("Did you like this format? You can make it your default.")
                     if st.button("Save README Style as Default", key="save_readme_style_btn"):
-                        # We need to know what settings were used. This assumes we stored them.
-                        # For now, let's assume `st.session_state.last_readme_settings` exists.
-                        # The logic to populate `last_readme_settings` would be in the README generation step (future refactor).
                         if st.session_state.get('last_readme_settings'):
                             with st.spinner("Saving default style..."):
                                 try:
@@ -236,23 +229,20 @@ def main():
                                 except Exception as e:
                                     st.error(f"Failed to save style: {e}")
                         else:
-                            st.warning("Could not find the style settings for the last README. (Note: This requires a refactor in the generation step to store settings).")
+                            st.warning("Could not find the style settings for the last README.")
             
             if st.session_state.generated_roadmap:
                 with st.expander("Generated roadmap.md", expanded=True):
                     st.markdown(st.session_state.generated_roadmap)
                     if st.button("Save roadmap.md to disk", key="save_roadmap_disk_btn"):
-                         with st.spinner("Saving..."):
-                            try:
-                                write_payload = {"filepath": "roadmap.md", "content": st.session_state.generated_roadmap}
-                                write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
-                                write_response.raise_for_status()
-                                st.success("✅ roadmap.md saved successfully!", icon="🗺️")
-                            except Exception as e:
-                                st.error(f"Failed to save roadmap.md: {e}")
-
-            # This code should be placed at the end of the Genesis Mode tab,
-            # after the display logic for the generated README and roadmap.
+                            with st.spinner("Saving..."):
+                                try:
+                                    write_payload = {"filepath": "roadmap.md", "content": st.session_state.generated_roadmap}
+                                    write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                    write_response.raise_for_status()
+                                    st.success("✅ roadmap.md saved successfully!", icon="🗺️")
+                                except Exception as e:
+                                    st.error(f"Failed to save roadmap.md: {e}")
 
             if st.session_state.get('generated_readme') and st.session_state.get('generated_roadmap'):
                 st.divider()
@@ -299,14 +289,14 @@ def main():
                 st.session_state.genesis_conversation = []
                 st.session_state.genesis_session_active = False
                 st.session_state.genesis_final_brief = None
-                st.session_state.generated_readme = None # Clear readme on restart
-                st.session_state.generated_roadmap = None # Clear roadmap on restart
+                st.session_state.generated_readme = None
+                st.session_state.generated_roadmap = None
                 st.rerun()
 
     elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("🗺️ Project Roadmap")
-        try:
-            response = httpx.get("http://localhost:8000/roadmap", timeout=10)
+        try: # Increased timeout for robustness, as API server might be slow to initialize LLM components
+            response = httpx.get("http://localhost:8000/roadmap", timeout=30)
             response.raise_for_status()
             data = response.json()
             tasks = data.get("roadmap", [])
@@ -322,7 +312,7 @@ def main():
                         if current_phase not in phases:
                             phases[current_phase] = []
                     else:
-                        if current_phase not in phases: # Should be initialized
+                        if current_phase not in phases:
                             phases[current_phase] = []
                         phases[current_phase].append(task)
 
@@ -342,8 +332,8 @@ def main():
                             help="e.g., 'Create a Python function to calculate Fibonacci numbers, write tests for it, and then run the tests.'")
 
         if st.button("Generate Plan", key="agent_generate_plan_btn"):
-            st.session_state.agent_plan = None # Clear previous plan
-            st.session_state.agent_execution_result = None # Clear previous execution result
+            st.session_state.agent_plan = None
+            st.session_state.agent_execution_result = None
             if not goal.strip():
                 st.warning("Please enter a goal.")
             else:
@@ -367,11 +357,10 @@ def main():
 
             st.warning("Review the plan carefully before execution.")
             if st.button("🚀 Execute Plan", type="primary", key="agent_execute_plan_btn"):
-                st.session_state.agent_execution_result = None # Clear previous result
+                st.session_state.agent_execution_result = None
                 with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."):
                     try:
-                        # This endpoint now executes the plan stored in memory by the API
-                        response = httpx.post("http://localhost:8000/agent/execute", timeout=300) # Increased timeout
+                        response = httpx.post("http://localhost:8000/agent/execute", timeout=300)
                         response.raise_for_status()
                         st.session_state.agent_execution_result = response.json()
                     except Exception as e:
@@ -401,7 +390,6 @@ def main():
             if selected_file:
                 col1, col2 = st.columns(2)
 
-                # --- Source Code Column ---
                 with col1:
                     st.subheader(f"Source: `{selected_file}`")
                     with st.spinner(f"Reading {selected_file}..."):
@@ -411,7 +399,6 @@ def main():
                         lang = selected_file.split('.')[-1]
                         st.code(file_data.get("content", ""), language=lang if lang != 'md' else 'markdown')
 
-                # --- Living Documentation Column ---
                 with col2:
                     st.subheader("Living Documentation")
                     readme_path = f"{selected_file}.readme.md"
@@ -423,11 +410,11 @@ def main():
                             else:
                                 st.warning("Documentation file found but could not be read.")
                     else:
-                        st.info("No Living Documentation found for this file. It will be generated automatically when the file is created or modified by the agent.")
+                        st.info("No Living Documentation found for this file.")
 
         except httpx.RequestError as e:
             st.error(f"Could not load file explorer. Is the API running? Error: {e}")
-        except Exception as e: # Catch other potential errors like JSONDecodeError
+        except Exception as e:
             st.error(f"An unexpected error occurred in File Explorer: {e}")
 
     elif st.session_state.active_tab == "🤖 Automation":
@@ -458,9 +445,56 @@ def main():
                         st.error(f"Failed to add stubs: {e}")
             else:
                 st.warning("Please enter a file path.")
+    
+    # New Tab for Code Analysis
+    elif st.session_state.active_tab == "🔬 Code Analysis":
+        st.header("🔬 Code Duplication Analysis")
+        st.write("Scan the project codebase for structurally and conceptually similar functions.")
+        
+        if st.button("⚡ Scan for Duplicates", use_container_width=True, type="primary"):
+            st.session_state.duplication_report = None # Clear previous report
+            with st.spinner("Analyzing codebase... This may take a moment."):
+                try:
+                    # We assume a new API endpoint will be created for this
+                    response = httpx.post("http://localhost:8000/analyze/duplicates", timeout=120)
+                    response.raise_for_status()
+                    st.session_state.duplication_report = response.json()
+                except Exception as e:
+                    st.error(f"Failed to run duplication analysis: {e}")
+                    st.session_state.duplication_report = {"error": str(e)}
 
-    # Add other tabs like "Refactor", "Profile", "My Vibe" here,
-    # ensuring they use the correct API endpoints from api.py
+        if st.session_state.duplication_report:
+            report = st.session_state.duplication_report
+            if "error" in report:
+                # Error already displayed during the API call
+                pass
+            else:
+                st.divider()
+                # --- Display Syntactic Duplicates ---
+                syntactic_dupes = report.get('syntactic', [])
+                if not syntactic_dupes:
+                    st.success("✅ No structurally duplicate functions found.")
+                else:
+                    st.subheader(f"🚨 Found {len(syntactic_dupes)} Group(s) of Structural Duplicates")
+                    for i, group in enumerate(syntactic_dupes, 1):
+                        with st.expander(f"Structural Group {i} ({len(group)} locations)", expanded=True):
+                            for loc in group:
+                                st.code(f"File: {loc['file']}\nFunction: {loc['function_name']}\nLine: {loc['line_number']}", language="text")
+                
+                st.divider()
+                # --- Display Semantic Duplicates ---
+                semantic_dupes = report.get('semantic', [])
+                if not semantic_dupes:
+                    st.success("✅ No conceptually similar functions found.")
+                else:
+                    st.subheader(f"🚨 Found {len(semantic_dupes)} Group(s) of Conceptual Duplicates")
+                    for i, group in enumerate(semantic_dupes, 1):
+                        with st.expander(f"Conceptual Group {i} ({len(group)} locations)", expanded=True):
+                            for loc in group:
+                                st.markdown(f"**File:** `{loc['file']}` | **Function:** `{loc['function_name']}` (Line: {loc['line_number']})")
+                                st.info(f"**Docstring:** \"{loc['docstring']}\"")
+                                st.write("---")
+
 
 if __name__ == "__main__":
     main()
