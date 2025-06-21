@@ -11,7 +11,8 @@ class LLMProvider(ABC):
         self.model_name = model_name
         self.api_key = api_key
         self.base_url = base_url # For self-hosted like Ollama
-        print(f" Initializing {self.PROVIDER_NAME} with model: {self.model_name or 'default'}")
+        # This print is commented out as the concrete classes provide more specific initialization messages.
+        # print(f" Initializing {self.PROVIDER_NAME} with model: {self.model_name or 'default'}")
 
     @abstractmethod
     def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 1024) -> str:
