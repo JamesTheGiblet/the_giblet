@@ -10,9 +10,9 @@ class OllamaProvider(LLMProvider):
         super().__init__(model_name=model_name, base_url=base_url)
         self.client = httpx.Client(base_url=self.base_url)
         if not self.check_ollama_availability():
-             print(f"⚠️ {self.PROVIDER_NAME} server at {self.base_url} might not be reachable or model '{self.model_name}' not available.")
+             print(f" {self.PROVIDER_NAME} server at {self.base_url} might not be reachable or model '{self.model_name}' not available.")
         else:
-            print(f"✅ {self.PROVIDER_NAME} provider initialized for model '{self.model_name}' at {self.base_url}.")
+            print(f" {self.PROVIDER_NAME} provider initialized for model '{self.model_name}' at {self.base_url}.")
 
     def check_ollama_availability(self):
         try:

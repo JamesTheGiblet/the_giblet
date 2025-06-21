@@ -22,15 +22,15 @@ class IdeaSynthesizer:
                  style_preference_manager: StylePreferenceManager):
         self.user_profile = user_profile
         self.memory = memory_system
-        self.llm = llm_provider
+        self.llm_provider = llm_provider
         self.style_manager = style_preference_manager
         self.contextualizer = project_contextualizer
-        self.capabilities = LLMCapabilities(provider=self.llm, user_profile=self.user_profile)
+        self.capabilities = LLMCapabilities(provider=self.llm_provider, user_profile=self.user_profile)
 
-        if self.llm and self.llm.is_available():
-            print(f"🎨 Idea Synthesizer initialized using {self.llm.PROVIDER_NAME} ({self.llm.model_name}).")
+        if self.llm_provider and self.llm_provider.is_available():
+            print(f"🎨 Idea Synthesizer initialized using {self.llm_provider.PROVIDER_NAME} ({self.llm_provider.model_name}).")
         else:
-            print(f"⚠️ Idea Synthesizer: LLM provider {self.llm.PROVIDER_NAME if self.llm else 'None'} is not available.")
+            print(f"⚠️ Idea Synthesizer: LLM provider {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'} is not available.")
 
     def _construct_prompt(self, base_prompt: str, weird_mode: bool = False) -> str:
         """Constructs a detailed prompt for the LLM based on user profile and context."""
@@ -56,13 +56,13 @@ class IdeaSynthesizer:
         """
         Generates ideas based on a prompt, optionally in "weird mode".
         """
-        if not self.llm or not self.llm.is_available():
+        if not self.llm_provider or not self.llm_provider.is_available():
             return "Idea generation failed: LLM provider is not available."
 
         full_prompt = self._construct_prompt(prompt_text, weird_mode)
 
         try:
-            response = self.llm.generate_text(
+            response = self.llm_provider.generate_text(
                 full_prompt,
                 max_tokens=self.capabilities.max_output_tokens
             )
@@ -91,17 +91,17 @@ class IdeaSynthesizer:
         Generates a direct text response from the model based on a given prompt,
         with light contextualization.
         """
-        if not self.llm or not self.llm.is_available():
+        if not self.llm_provider or not self.llm_provider.is_available():
             return "Text generation failed: LLM provider is not available."
 
         # Simplified contextual prompt for general text generation
         contextual_prompt = f"""
-        Project Context: {self.contextualizer.get_summary()}
+        Project Context: {self.contextualizer.get_full_context()}
         User's direct prompt: "{prompt}"
         """
         
         try:
-            response_text = self.llm.generate_text(
+            response_text = self.llm_provider.generate_text(
                 contextual_prompt,
                 max_tokens=self.capabilities.max_output_tokens
             )

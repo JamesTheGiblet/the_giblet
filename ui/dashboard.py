@@ -1,24 +1,17 @@
 # dashboard.py
-import streamlit as st
 import httpx
+import streamlit as st
 import sys
 from pathlib import Path
-import json
-import shlex
-import subprocess
-import difflib
 
 # This line ensures that the script can find your 'core' modules
+import difflib
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from core.memory import Memory
-from core.user_profile import UserProfile
-from core.llm_provider_base import LLMProvider
-from core.llm_providers import GeminiProvider, OllamaProvider
-from core.style_preference import StylePreferenceManager
-from core.project_contextualizer import ProjectContextualizer
-from core.idea_interpreter import IdeaInterpreter
-# Note: Other direct core imports are removed as logic is now handled via API calls
+from ui.dashboard_api_client import GibletAPIClient
+from ui.dashboard_utils import format_code_diff
+from ui.session_state_manager import initialize_session_state
+from ui.dashboard_components import render_sidebar_navigation
 
 
 def main():
@@ -32,37 +25,13 @@ def main():
     )
 
     # --- Session State Initialization ---
-    if 'active_tab' not in st.session_state:
-        st.session_state.active_tab = "🧬 Genesis Mode"
-    if 'agent_plan' not in st.session_state:
-        st.session_state.agent_plan = None
-    if 'agent_execution_result' not in st.session_state:
-        st.session_state.agent_execution_result = None
-    if 'genesis_conversation' not in st.session_state:
-        st.session_state.genesis_conversation = []
-    if 'genesis_session_active' not in st.session_state:
-        st.session_state.genesis_session_active = False
-    if 'genesis_final_brief' not in st.session_state:
-        st.session_state.genesis_final_brief = None
-    if 'generated_readme' not in st.session_state:
-        st.session_state.generated_readme = None
-    if 'generated_roadmap' not in st.session_state:
-        st.session_state.generated_roadmap = None
-    # Add state for the new duplication analysis feature
-    if 'duplication_report' not in st.session_state:
-        st.session_state.duplication_report = None
+    initialize_session_state()
+    
+    api_client = GibletAPIClient()
 
 
-    # --- Sidebar ---
     with st.sidebar:
-        st.header("🚀 Quick Actions")
-        # Add the new "Code Analysis" tab
-        tab_names = ["🧬 Genesis Mode", "🗺️ Roadmap", "🛠️ Agent & Generator", "✨ Refactor", "📂 File Explorer", "🤖 Automation", "🔬 Code Analysis", "👤 Profile", "🎨 My Vibe"]
-
-        for tab_name in tab_names:
-            if st.button(tab_name, key=f"sidebar_nav_{tab_name.replace(' ', '_')}", use_container_width=True):
-                st.session_state.active_tab = tab_name
-                st.rerun()
+        render_sidebar_navigation()
 
     st.title("🧠 The Giblet: Project Cockpit")
 
@@ -92,8 +61,8 @@ def main():
                 st.write("") 
                 if st.button("🎲 Surprise Me!", use_container_width=True, help="Generate a random, weird project idea to start with.", key="surprise_me_btn"):
                     with st.spinner("Summoning a strange idea..."):
-                        try:
-                            response_random_idea = httpx.post("http://localhost:8000/ideas/random_weird", timeout=60)
+                        try: # Use the API client
+                            response_random_idea = api_client.get_random_weird_idea()
                             response_random_idea.raise_for_status()
                             data_random_idea = response_random_idea.json()
                             random_idea = data_random_idea.get("idea")
@@ -101,7 +70,7 @@ def main():
                             if random_idea:
                                 response_genesis_start = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": random_idea}, timeout=60)
                                 response_genesis_start.raise_for_status()
-                                data_genesis_start = response_genesis_start.json()
+                                data_genesis_start = api_client.genesis_start(random_idea)
 
                                 if data_genesis_start.get("error"):
                                     st.error(f"Failed to start interpretation with random idea: {data_genesis_start['error']}")
@@ -123,8 +92,8 @@ def main():
             if st.button("🚀 Start Interpretation", key="start_genesis_interpretation_btn"):
                 if initial_idea_input.strip():
                     with st.spinner("Interpreter is preparing questions..."):
-                        try:
-                            response = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": initial_idea_input}, timeout=60)
+                        try: # Use the API client
+                            response = api_client.genesis_start(initial_idea_input)
                             response.raise_for_status()
                             data = response.json()
                             if data.get("error"):
@@ -146,8 +115,8 @@ def main():
             if user_answer:
                 st.session_state.genesis_conversation.append({"role": "user", "content": user_answer})
                 with st.spinner("Interpreter is processing your answer..."):
-                    try:
-                        response = httpx.post("http://localhost:8000/genesis/answer", json={"answer": user_answer}, timeout=120)
+                    try: # Use the API client
+                        response = api_client.genesis_answer(user_answer)
                         response.raise_for_status()
                         data = response.json()
 
@@ -180,8 +149,7 @@ def main():
                 if st.button("Generate Project README", key="generate_project_readme_btn", use_container_width=True):
                     with st.spinner("Generating style-aware README..."):
                         try:
-                            payload = {"project_brief": st.session_state.genesis_final_brief}
-                            response = httpx.post("http://localhost:8000/generate/readme", json=payload, timeout=120)
+                            response = api_client.generate_readme(st.session_state.genesis_final_brief)
                             response.raise_for_status()
                             st.session_state.generated_readme = response.json().get("readme_content")
                         except Exception as e:
@@ -193,9 +161,8 @@ def main():
                 
                 if st.button("Generate Project Roadmap", key="generate_project_roadmap_btn", use_container_width=True):
                     with st.spinner("Generating style-aware roadmap..."):
-                        try:
-                            payload = {"project_brief": st.session_state.genesis_final_brief}
-                            response = httpx.post("http://localhost:8000/generate/roadmap", json=payload, timeout=120)
+                        try: # Use the API client
+                            response = api_client.generate_roadmap(st.session_state.genesis_final_brief)
                             response.raise_for_status()
                             st.session_state.generated_roadmap = response.json().get("roadmap_content")
                         except Exception as e:
@@ -205,10 +172,9 @@ def main():
                 with st.expander("Generated README.md", expanded=True):
                     st.markdown(st.session_state.generated_readme)
                     if st.button("Save README.md to disk", key="save_readme_disk_btn"):
-                            with st.spinner("Saving..."):
+                            with st.spinner("Saving..."): # Use the API client
                                 try:
-                                    write_payload = {"filepath": "README.md", "content": st.session_state.generated_readme}
-                                    write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                    write_response = api_client.write_file("README.md", st.session_state.generated_readme)
                                     write_response.raise_for_status()
                                     st.success("✅ README.md saved successfully!", icon="📄")
                                 except Exception as e:
@@ -218,12 +184,10 @@ def main():
                     if st.button("Save README Style as Default", key="save_readme_style_btn"):
                         if st.session_state.get('last_readme_settings'):
                             with st.spinner("Saving default style..."):
-                                try:
-                                    payload = {
-                                        "category": "readme",
-                                        "settings": st.session_state.last_readme_settings
-                                    }
-                                    response = httpx.post("http://localhost:8000/style/set_preferences", json=payload, timeout=10)
+                                try: # Use the API client
+                                    response = api_client.set_style_preferences(
+                                        "readme", st.session_state.last_readme_settings
+                                    )
                                     response.raise_for_status()
                                     st.toast("✅ README style preferences updated!")
                                 except Exception as e:
@@ -235,10 +199,9 @@ def main():
                 with st.expander("Generated roadmap.md", expanded=True):
                     st.markdown(st.session_state.generated_roadmap)
                     if st.button("Save roadmap.md to disk", key="save_roadmap_disk_btn"):
-                            with st.spinner("Saving..."):
+                            with st.spinner("Saving..."): # Use the API client
                                 try:
-                                    write_payload = {"filepath": "roadmap.md", "content": st.session_state.generated_roadmap}
-                                    write_response = httpx.post("http://localhost:8000/file/write", json=write_payload, timeout=10)
+                                    write_response = api_client.write_file("roadmap.md", st.session_state.generated_roadmap)
                                     write_response.raise_for_status()
                                     st.success("✅ roadmap.md saved successfully!", icon="🗺️")
                                 except Exception as e:
@@ -254,12 +217,10 @@ def main():
                 with col1:
                     if st.button("Create Local Project Folder", use_container_width=True):
                         with st.spinner("Scaffolding local project..."):
-                            try:
-                                payload = {
-                                    "project_name": st.session_state.genesis_final_brief.get("title", "new_giblet_project"),
-                                    "project_brief": st.session_state.genesis_final_brief
-                                }
-                                response = httpx.post("http://localhost:8000/project/scaffold_local", json=payload, timeout=60)
+                            try: # Use the API client
+                                response = api_client.scaffold_local_project(
+                                    st.session_state.genesis_final_brief.get("title", "new_giblet_project"), st.session_state.genesis_final_brief
+                                )
                                 response.raise_for_status()
                                 data = response.json()
                                 st.success(data.get("message"))
@@ -270,14 +231,13 @@ def main():
                 with col2:
                     if st.button("Create Private GitHub Repo", use_container_width=True):
                         st.info("Ensure your `GITHUB_TOKEN` is set as an environment variable for the API server.", icon="🔑")
-                        with st.spinner("Creating GitHub repository..."):
+                        with st.spinner("Creating GitHub repository..."): # Use the API client
                             try:
-                                payload = {
-                                    "repo_name": st.session_state.genesis_final_brief.get("title", "new-giblet_project").lower().replace(" ", "-"),
-                                    "description": st.session_state.genesis_final_brief.get("summary", "A new project generated by The Giblet."),
-                                    "private": True
-                                }
-                                response = httpx.post("http://localhost:8000/project/create_github_repo", json=payload, timeout=60)
+                                response = api_client.create_github_repo(
+                                    st.session_state.genesis_final_brief.get("title", "new-giblet_project").lower().replace(" ", "-"),
+                                    st.session_state.genesis_final_brief.get("summary", "A new project generated by The Giblet."),
+                                    True
+                                )
                                 response.raise_for_status()
                                 data = response.json()
                                 st.success(data.get("message"))
@@ -296,7 +256,7 @@ def main():
     elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("🗺️ Project Roadmap")
         try: # Increased timeout for robustness, as API server might be slow to initialize LLM components
-            response = httpx.get("http://localhost:8000/roadmap", timeout=30)
+            response = api_client.get_roadmap()
             response.raise_for_status()
             data = response.json()
             tasks = data.get("roadmap", [])
@@ -338,8 +298,8 @@ def main():
                 st.warning("Please enter a goal.")
             else:
                 with st.spinner("Agent is thinking and creating a plan..."):
-                    try:
-                        response = httpx.post("http://localhost:8000/agent/plan", json={"goal": goal}, timeout=60)
+                    try: # Use the API client
+                        response = api_client.agent_plan(goal)
                         response.raise_for_status()
                         data = response.json()
                         if data.get("error"):
@@ -358,9 +318,9 @@ def main():
             st.warning("Review the plan carefully before execution.")
             if st.button("🚀 Execute Plan", type="primary", key="agent_execute_plan_btn"):
                 st.session_state.agent_execution_result = None
-                with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."):
+                with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."): # Use the API client
                     try:
-                        response = httpx.post("http://localhost:8000/agent/execute", timeout=300)
+                        response = api_client.agent_execute()
                         response.raise_for_status()
                         st.session_state.agent_execution_result = response.json()
                     except Exception as e:
@@ -380,51 +340,116 @@ def main():
                 st.error(f"Final Error: {res.get('final_error')}")
 
     elif st.session_state.active_tab == "📂 File Explorer":
-        st.header("📂 Project File Explorer")
-        try:
-            response = httpx.get("http://localhost:8000/files/list", timeout=10)
-            response.raise_for_status()
-            files = response.json().get("files", [])
-            selected_file = st.selectbox("Select a file to view:", [""] + files)
+        st.header("📂 Universal File Explorer")
 
-            if selected_file:
-                col1, col2 = st.columns(2)
+        # Source selection
+        source_type = st.radio(
+            "Select file source:",
+            ["Local Filesystem", "GitHub Repository"],
+            key="explorer_source_radio",
+            horizontal=True,
+            on_change=lambda: st.session_state.update(explorer_files=[], explorer_selected_file_path=None, explorer_selected_file_content=None) # Reset on change
+        )
+        st.session_state.explorer_source = source_type
 
-                with col1:
-                    st.subheader(f"Source: `{selected_file}`")
-                    with st.spinner(f"Reading {selected_file}..."):
-                        read_response = httpx.get(f"http://localhost:8000/file/read?filepath={selected_file}", timeout=10)
+        # --- GitHub Source UI ---
+        if st.session_state.explorer_source == "GitHub Repository":
+            st.info("Ensure your `GITHUB_TOKEN` is set as an environment variable for the API server.", icon="🔑")
+            col1, col2, col3 = st.columns([2, 2, 1])
+            with col1:
+                st.session_state.explorer_github_owner = st.text_input("GitHub Owner", value=st.session_state.explorer_github_owner, key="github_owner_input")
+            with col2:
+                st.session_state.explorer_github_repo = st.text_input("GitHub Repo Name", value=st.session_state.explorer_github_repo, key="github_repo_input")
+            with col3:
+                st.write("") # Spacer
+                if st.button("Fetch Repo Files", use_container_width=True, key="fetch_github_files_btn"):
+                    if st.session_state.explorer_github_owner and st.session_state.explorer_github_repo: # Use the API client
+                        with st.spinner("Fetching file list from GitHub..."):
+                            try:
+                                response = api_client.list_github_repo_contents(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo)
+                                response.raise_for_status()
+                                st.session_state.explorer_files = response.json().get("files", [])
+                            except Exception as e:
+                                st.error(f"Failed to fetch GitHub repo contents: {e}")
+                                st.session_state.explorer_files = []
+                    else:
+                        st.warning("Please provide both GitHub owner and repo name.")
+
+        # --- Local Filesystem Source ---
+        else: # Local
+            if st.button("Refresh Local Files", key="refresh_local_files_btn"):
+                with st.spinner("Scanning local files..."): # Use the API client
+                    try:
+                        response = api_client.list_local_files()
+                        response.raise_for_status()
+                        st.session_state.explorer_files = response.json().get("files", [])
+                    except Exception as e:
+                        st.error(f"Could not load file list: {e}")
+                        st.session_state.explorer_files = []
+            # Initial load for local files
+            if not st.session_state.explorer_files:
+                try: # Use the API client
+                    response = api_client.list_local_files()
+                    response.raise_for_status()
+                    st.session_state.explorer_files = response.json().get("files", [])
+                except Exception: # Silently fail on initial load if API is not ready
+                    pass
+
+        # --- File Selection and Display (Common Logic) ---
+        if st.session_state.explorer_files:
+            selected_file = st.selectbox(
+                "Select a file to view:",
+                [""] + st.session_state.explorer_files,
+                key="explorer_file_selector"
+            )
+
+            if selected_file and selected_file != st.session_state.get('explorer_selected_file_path'):
+                st.session_state.explorer_selected_file_path = selected_file
+                with st.spinner(f"Reading {selected_file}..."):
+                    try: # Use the API client
+                        if st.session_state.explorer_source == "GitHub Repository":
+                            read_response = api_client.get_github_file_content(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo, selected_file)
+                        else: # Local
+                            read_response = api_client.read_file(selected_file)
+                        
                         read_response.raise_for_status()
                         file_data = read_response.json()
-                        lang = selected_file.split('.')[-1]
-                        st.code(file_data.get("content", ""), language=lang if lang != 'md' else 'markdown')
+                        st.session_state.explorer_selected_file_content = file_data.get("content", "# Error: Could not load content.")
+                    except Exception as e:
+                        st.error(f"Error reading file '{selected_file}': {e}")
+                        st.session_state.explorer_selected_file_content = f"# Error reading file:\n\n{e}"
+        else:
+            st.info("No files to display. Fetch files from a source above.")
 
-                with col2:
-                    st.subheader("Living Documentation")
-                    readme_path = f"{selected_file}.readme.md"
-                    if readme_path in files:
-                        with st.spinner(f"Loading documentation..."):
-                            readme_resp = httpx.get(f"http://localhost:8000/file/read?filepath={readme_path}", timeout=10)
-                            if readme_resp.status_code == 200:
-                                st.markdown(readme_resp.json().get("content", "*Could not load documentation.*"))
-                            else:
-                                st.warning("Documentation file found but could not be read.")
-                    else:
-                        st.info("No Living Documentation found for this file.")
-
-        except httpx.RequestError as e:
-            st.error(f"Could not load file explorer. Is the API running? Error: {e}")
-        except Exception as e:
-            st.error(f"An unexpected error occurred in File Explorer: {e}")
+        if st.session_state.get('explorer_selected_file_content'):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader(f"Source: `{st.session_state.explorer_selected_file_path}`")
+                lang = st.session_state.explorer_selected_file_path.split('.')[-1]
+                st.code(st.session_state.explorer_selected_file_content, language=lang if lang != 'md' else 'markdown', line_numbers=True)
+            with col2:
+                st.subheader("Living Documentation")
+                readme_path = f"{st.session_state.explorer_selected_file_path}.readme.md"
+                # This part only works for local files currently.
+                # A more advanced implementation would check for .readme.md files in GitHub too.
+                if st.session_state.explorer_source == "Local Filesystem" and readme_path in st.session_state.explorer_files: # Use the API client
+                    with st.spinner(f"Loading documentation..."):
+                        readme_resp = api_client.read_file(readme_path)
+                        if readme_resp.status_code == 200:
+                            st.markdown(readme_resp.json().get("content", "*Could not load documentation.*"))
+                        else:
+                            st.warning("Documentation file found but could not be read.")
+                else:
+                    st.info("No Living Documentation found for this file.")
 
     elif st.session_state.active_tab == "🤖 Automation":
         st.header("Project Automation")
 
         st.subheader("Generate Changelog")
         if st.button("Generate from Git History", key="btn_changelog"):
-            with st.spinner("Analyzing Git history..."):
+            with st.spinner("Analyzing Git history..."): # Use the API client
                 try:
-                    response = httpx.post("http://localhost:8000/automate/changelog", timeout=30)
+                    response = api_client.generate_changelog()
                     response.raise_for_status()
                     st.success(response.json().get("message", "Changelog generated!"))
                 except Exception as e:
@@ -435,10 +460,10 @@ def main():
         st.subheader("Add TODO Stubs")
         stub_filepath = st.text_input("Enter the path to a Python file:", "core/agent.py", key="txt_stub_file")
         if st.button("Add Stubs", key="btn_stubs"):
-            if stub_filepath:
+            if stub_filepath: # Use the API client
                 with st.spinner(f"Analyzing {stub_filepath}..."):
                     try:
-                        response = httpx.post("http://localhost:8000/automate/stubs", json={"filepath": stub_filepath}, timeout=30)
+                        response = api_client.add_stubs(stub_filepath)
                         response.raise_for_status()
                         st.success(response.json().get("message", "Stubs added!"))
                     except Exception as e:
@@ -452,16 +477,72 @@ def main():
         st.write("Scan the project codebase for structurally and conceptually similar functions.")
         
         if st.button("⚡ Scan for Duplicates", use_container_width=True, type="primary"):
-            st.session_state.duplication_report = None # Clear previous report
+            st.session_state.duplication_report = None # Clear previous report # Use the API client
             with st.spinner("Analyzing codebase... This may take a moment."):
                 try:
-                    # We assume a new API endpoint will be created for this
-                    response = httpx.post("http://localhost:8000/analyze/duplicates", timeout=120)
+                    response = api_client.analyze_duplicates()
                     response.raise_for_status()
                     st.session_state.duplication_report = response.json()
                 except Exception as e:
                     st.error(f"Failed to run duplication analysis: {e}")
                     st.session_state.duplication_report = {"error": str(e)}
+    
+    elif st.session_state.active_tab == "✨ Refactor":
+        st.header("✨ Code Refactor & Diff")
+        st.write("Enter Python code and a refactoring instruction. The Giblet will suggest a refactored version and show the differences.")
+
+        col_input, col_output = st.columns(2)
+
+        with col_input:
+            st.subheader("Original Code")
+            refactor_code_input = st.text_area("Enter Python code to refactor:", height=400, key="refactor_code_input")
+            refactor_instruction = st.text_input("Refactoring Instruction:", key="refactor_instruction")
+
+            if st.button("Refactor Code", key="refactor_btn", use_container_width=True):
+                if not refactor_code_input.strip():
+                    st.warning("Please enter Python code to refactor.")
+                    st.stop()
+                if not refactor_instruction.strip():
+                    st.warning("Please provide a refactoring instruction.")
+                    st.stop()
+
+                with st.spinner("Refactoring code..."): # Use the API client
+                    try:
+                        response = api_client.refactor_code(refactor_code_input, refactor_instruction)
+                        response.raise_for_status()
+                        data = response.json()
+                        st.session_state.original_code_refactor = data.get("original_code")
+                        st.session_state.refactored_code_refactor = data.get("refactored_code")
+                        st.session_state.refactor_explanation = data.get("explanation")
+                        st.success("Refactoring complete!")
+                    except Exception as e:
+                        st.error(f"Error during refactoring: {e}")
+
+        with col_output:
+            st.subheader("Refactored Code & Diff")
+            if st.session_state.get("refactored_code_refactor"):
+                # Display the explanation in an expander
+                if st.session_state.get("refactor_explanation"):
+                    with st.expander("✨ Refactoring Explanation", expanded=True):
+                        st.markdown(st.session_state.refactor_explanation)
+
+                st.code(st.session_state.refactored_code_refactor, language="python")
+
+                st.markdown("---")
+                st.subheader("Code Differences")
+                original_lines = st.session_state.original_code_refactor.splitlines(keepends=True)
+                refactored_lines = st.session_state.refactored_code_refactor.splitlines(keepends=True)
+                
+                diff = difflib.unified_diff(
+                    original_lines,
+                    refactored_lines,
+                    fromfile="original.py",
+                    tofile="refactored.py",
+                    lineterm="" # Avoid extra newlines
+                )
+                st.code("".join(diff), language="diff")
+            else:
+                st.info("Refactored code and explanation will appear here after generation.")
 
         if st.session_state.duplication_report:
             report = st.session_state.duplication_report

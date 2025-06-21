@@ -19,13 +19,13 @@ class Agent:
         # --- FIX APPLIED HERE ---
         # Standardizing the attribute name to `llm_provider` across all components.
         # The Agent will now correctly check for `self.idea_synth.llm_provider`.
-        idea_synth_ready = self.idea_synth.llm and self.idea_synth.llm.is_available()
+        idea_synth_ready = self.idea_synth.llm_provider and self.idea_synth.llm_provider.is_available()
         code_gen_ready = self.code_generator.llm_provider and self.code_generator.llm_provider.is_available()
 
         if idea_synth_ready and code_gen_ready:
-            print("🤖 Agent initialized and ready. All LLM-dependent components are available.")
+            print("[AGENT] Agent initialized and ready. All LLM-dependent components are available.")
         else:
-            print("⚠️ Agent initialized with limited functionality. One or more LLM components are not available.")
+            print("[AGENT] Agent initialized with limited functionality. One or more LLM components are not available.")
 
     def create_plan(self, goal: str) -> list[str]:
         """
@@ -34,24 +34,24 @@ class Agent:
         prompt = f"""
         You are an expert software development agent.
         Create a sequence of `giblet` CLI commands to accomplish the following high-level goal.
-        The plan should be a list of command-line strings.
-        Do not number the steps.
-        
-        Available commands include:
-        - `write <filepath>` (Writes multi-line content to a file. The agent will be prompted for content.)
-        - `generate function "<description>"` (Generates a Python function)
-        - `generate tests <filepath>` (Generates pytest tests for a file)
-        - `exec "<shell_command>"` (Executes a command like `pytest` or `python`)
+        The plan should be a list of command-line strings. Do not number the steps.
+
+        Available commands for planning:
+        - `write <filepath>` (Writes user-provided content to a file. This is the first step for creating new code.)
+        - `generate tests <filepath>` (Generates pytest tests for an existing file.)
+        - `exec "<shell_command>"` (Executes a command like `pytest` or `python`.)
         - `read <filepath>`
         - `ls [directory]`
+
+        **IMPORTANT**: To create a new script with code, you must first use the `write` command. The user will then be prompted to provide the code. After the code is written into a file, you can then generate tests for that file.
 
         Goal: "{goal}"
 
         Respond with ONLY the list of commands, one command per line.
-        Example:
+        Example for creating and testing a script:
         write my_script.py
         generate tests my_script.py
-        exec "pytest tests/test_generated_for_my_script.py"
+        exec "pytest"
         """
         
         try:

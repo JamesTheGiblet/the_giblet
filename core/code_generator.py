@@ -1,5 +1,6 @@
 # core/code_generator.py
 import logging # <<< NEW IMPORT
+import json
 from core.user_profile import UserProfile # Import UserProfile
 from core.memory import Memory # Import Memory
 from core.llm_provider_base import LLMProvider # Import LLMProvider
@@ -145,10 +146,10 @@ class CodeGenerator:
             return f"# An error occurred during UI generation: {e}"
 
     # <<< NEW METHOD
-    def refactor_code(self, source_code: str, instruction: str) -> str:
+    def refactor_code(self, source_code: str, instruction: str) -> dict:
         """Refactors a block of code based on a specific instruction."""
         if not self.llm_provider or not self.llm_provider.is_available():
-            return f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'})."
+            return {"refactored_code": f"# Code Generator is not available (provider: {self.llm_provider.PROVIDER_NAME if self.llm_provider else 'None'}).", "explanation": "LLM provider is not available."}
 
         user_name = self.user_profile.get_preference("general", "user_name", "the user")
         refactor_aggressiveness = self.user_profile.get_preference("coding_style", "refactor_aggressiveness", "moderate")
@@ -160,11 +161,9 @@ class CodeGenerator:
         final_prompt = f"""
         Project Context:
         {project_context_summary}
-        You are an expert Python code refactoring assistant.
-        Your task is to rewrite the provided source code based on a specific instruction.
+        You are an expert Python code refactoring assistant. Your task is to rewrite the provided source code based on a specific instruction and explain your changes.
         Ensure the new code is clean, efficient, and maintains the original functionality.
         The user is {user_name}. Their preferred refactoring aggressiveness is '{refactor_aggressiveness}'.
-        ONLY return the new, complete source code in a single markdown code block. Do not add any explanatory text.
 
         Refactoring Instruction: "{instruction}"
         Consider the user's preference for '{refactor_aggressiveness}' refactoring when applying changes.
@@ -173,6 +172,12 @@ class CodeGenerator:
         ```python
         {source_code}
         ```
+
+        Respond with a JSON object containing two keys:
+        1. "refactored_code": A string containing the complete, refactored Python code.
+        2. "explanation": A string in Markdown format explaining the changes you made and why.
+
+        ONLY return the raw JSON object. Do not include any explanatory text or markdown formatting around the JSON.
         """
 
         try:
@@ -180,21 +185,30 @@ class CodeGenerator:
                 final_prompt,
                 max_tokens=self.capabilities.max_output_tokens
             )
-            # Clean up the response to extract only the code block
-            code_block = response_text.strip()
-            if code_block.startswith("```python"):
-                code_block = code_block[len("```python"):].strip()
-            if code_block.endswith("```"):
-                code_block = code_block[:-len("```")].strip()
-            self.memory.remember('last_ai_interaction', {
-                "module": "CodeGenerator",
-                "method": "refactor_code",
-                "prompt_summary": instruction[:100],
-                "output_summary": code_block[:150]
-            })
-            return code_block
+            # Clean up the response to extract only the JSON block
+            json_block = response_text.strip()
+            if json_block.startswith("```json"):
+                json_block = json_block[len("```json"):].strip()
+            if json_block.endswith("```"):
+                json_block = json_block[:-len("```")].strip()
+            
+            try:
+                refactor_data = json.loads(json_block)
+                if "refactored_code" in refactor_data and "explanation" in refactor_data:
+                    self.memory.remember('last_ai_interaction', {
+                        "module": "CodeGenerator", "method": "refactor_code",
+                        "prompt_summary": instruction[:100],
+                        "output_summary": refactor_data.get('refactored_code', '')[:150],
+                        "explanation": refactor_data.get('explanation', '')[:150]
+                    })
+                    return refactor_data
+                else:
+                    return {"refactored_code": json_block, "explanation": "LLM did not return a valid JSON object with 'refactored_code' and 'explanation' keys."}
+            except json.JSONDecodeError:
+                return {"refactored_code": response_text, "explanation": "LLM did not return valid JSON. Displaying raw output as code."}
+
         except Exception as e:
-            return f"# An error occurred during code refactoring: {e}"
+            return {"refactored_code": f"# An error occurred during code refactoring: {e}", "explanation": str(e)}
          
     # <<< NEW METHOD
     def generate_unit_tests(self, source_code: str, source_filename: str) -> str:

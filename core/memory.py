@@ -45,7 +45,7 @@ class Memory:
                 self._long_term_memory_file_path = Path(__file__).parent.parent / "data/memory.json"
             self.long_term_memory_path = self._long_term_memory_file_path
             self.long_term_memory_path.touch(exist_ok=True)
-            print("🧠 Memory module initialized with local JSON backend.")
+            print("[MEM] Memory module initialized with local JSON backend.")
 
         self._load_long_term_data()
 

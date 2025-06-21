@@ -18,9 +18,9 @@ class GeminiProvider(LLMProvider):
             
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(self.model_name)
-            print(f"✅ {self.PROVIDER_NAME} provider initialized with model '{self.model_name}'.")
+            print(f" {self.PROVIDER_NAME} provider initialized with model '{self.model_name}'.")
         except Exception as e:
-            print(f"❌ Failed to initialize {self.PROVIDER_NAME} provider: {e}")
+            print(f"Failed to initialize {self.PROVIDER_NAME} provider: {e}")
             self.model = None
 
     def generate_text(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2048) -> str: # Gemini uses 'temperature' implicitly via GenerationConfig

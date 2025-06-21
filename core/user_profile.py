@@ -54,11 +54,11 @@ class UserProfile:
         # Check if the retrieved data is not a dictionary (e.g., it's the default "not found" string)
         if not isinstance(retrieved_data, dict):
             self.data = DEFAULT_PROFILE_STRUCTURE.copy() # Initialize with default structure
-            print(f"👤 New user profile initialized with default structure (key '{PROFILE_MEMORY_KEY}' not found or invalid in memory).")
+            print(f" New user profile initialized with default structure (key '{PROFILE_MEMORY_KEY}' not found or invalid in memory).")
             self.save() # Save the initial empty profile
         else:
             self.data = retrieved_data
-            print(f"👤 User profile loaded with {len(self.data)} top-level categories.")
+            print(f" User profile loaded with {len(self.data)} top-level categories.")
     def get_all_data(self) -> dict:
         """Returns all profile data."""
         return self.data
@@ -80,7 +80,7 @@ class UserProfile:
 
         current_level.setdefault(final_category_key, {})[key] = value
         self.save() # Save after modification
-        print(f"👤 Profile: '{category if isinstance(category, str) else '.'.join(category)}.{key}' set to '{value}'.")
+        print(f" Profile: '{category if isinstance(category, str) else '.'.join(category)}.{key}' set to '{value}'.")
 
     def get_preference(self, category: str, key: str, default: any = None) -> any:
         """
@@ -94,13 +94,13 @@ class UserProfile:
         Saves the current profile data to long-term memory.
         """
         self.memory.commit(PROFILE_MEMORY_KEY, self.data)
-        # print("👤 User profile saved.") # Can be a bit noisy if called often
+        # print(" User profile saved.") # Can be a bit noisy if called often
 
     def clear_profile(self):
         """Clears all user profile data."""
         self.data = {}
         self.save()
-        print("👤 User profile cleared.")
+        print(" User profile cleared.")
 
     def add_feedback(self, rating: int, comment: str, context_id: str | None = None):
         """

@@ -34,6 +34,11 @@ from core.mini_readme_generator import MiniReadmeGenerator
 from core.readme_generator import ReadmeGenerator
 from core.roadmap_generator import RoadmapGenerator
 from core.duplication_analyzer import DuplicationAnalyzer # <<< 1. IMPORT aNALYZER
+from ui.cli_components import display_duplication_report
+from ui.cli_genesis_flow import run_genesis_interview
+from ui.cli_execution_flow import execute_plan_with_self_correction # NEW IMPORT
+from ui.cli_config_commands import handle_profile_command, handle_llm_config_command # NEW IMPORT
+from ui.cli_genesis_commands import handle_genesis as handle_genesis_command # NEW IMPORT
 
 # --- Proactive Learner Import (now uses actual UserProfile) ---
 try:
@@ -136,56 +141,10 @@ def start_cli_loop():
         llm_provider=cli_llm_provider, 
         user_profile=user_profile
     )
-
-    MAX_FIX_ATTEMPTS = 3
     
     # --- Register All Commands ---
     def register(name, handler, description=""):
         command_manager.register(name, handler, description)
-
-    # --- Helper function for the Genesis interview loop ---
-    def _run_genesis_interview(initial_idea: str, idea_interpreter, mem):
-        """
-        Handles the common logic for the interactive Q&A session in Genesis mode.
-        """
-        print(f"\n🚀 Starting Genesis Mode for idea: \"{initial_idea}\"")
-        
-        questions = idea_interpreter.start_interpretation_session(initial_idea)
-        if not questions:
-            print("\n❌ Error: Could not start the interpretation session. The LLM might be unavailable.")
-            return
-
-        print("\n🤖 The Giblet asks:\n")
-        print(questions)
-        
-        print("\n> Provide your answers below. Type 'EOF' or press Ctrl+D on a new line when you're done.")
-        user_answers_lines = []
-        while True:
-            try:
-                line = input()
-                if line.strip().upper() == "EOF":
-                    break
-            except EOFError:
-                break
-            user_answers_lines.append(line)
-        user_answers = "\n".join(user_answers_lines)
-
-        if not user_answers.strip():
-            print("\n❌ No answer provided. Aborting Genesis session.")
-            return
-
-        print("\nAnalyzing and synthesizing project brief...")
-        result = idea_interpreter.submit_answer_and_continue(user_answers)
-
-        if result.get("status") == "complete":
-            final_brief = result.get("data", {})
-            mem.remember("last_genesis_brief", final_brief)
-            print("\n--- ✅ Genesis Complete: Synthesized Project Brief ---")
-            print(json.dumps(final_brief, indent=2))
-            print("----------------------------------------------------\n")
-            print("Next step: Run `genesis generate-readme` or `genesis scaffold`.")
-        else:
-            print(f"\n❌ An error occurred during synthesis: {result.get('message', 'Unknown error.')}")
 
     # --- Command Handlers ---
 
@@ -362,101 +321,23 @@ def start_cli_loop():
             print(f"❌ Failed to launch dashboard: {e}")
     register("dashboard", handle_dashboard, "Launches or focuses the web dashboard.")
 
+    # --- Agent & Plan Execution Handlers ---
     def handle_execute(args):
         plan = memory.recall('last_plan')
         if not isinstance(plan, list) or not plan:
             print("❌ No plan found in memory. Please generate a plan first using the 'plan' command.")
-            if isinstance(plan, str): 
+            if isinstance(plan, str):
                 print(f"   (Details: {plan})")
             return
-
-        print("\n--- About to Execute Plan ---")
-        for i, step in enumerate(plan, 1):
-            print(f"Step {i}: giblet {step}")
-        print("---------------------------\n")
-
-        confirm = input("Proceed with execution? (y/n): ").lower()
-        if confirm != 'y':
-            print("❌ Execution cancelled.")
-            return
-
-        print("\n🚀 Executing plan...")
-        for i, command_string in enumerate(plan, 1):
-            print(f"\n--- Running Step {i}: giblet {command_string} ---")
-            parts = shlex.split(command_string)
-            if not parts: 
-                print(f"   └─ Skipping empty command in plan (Step {i}).")
-                continue 
-
-            command_name = parts[0].lower()
-            cmd_args = parts[1:]
-            execution_result = command_manager.execute(command_name, cmd_args)
-
-            return_code, stdout, stderr = 0, "", "" 
-            if isinstance(execution_result, tuple) and len(execution_result) == 3:
-                return_code, stdout, stderr = execution_result
-            
-            is_test_step = (command_name == "exec" and cmd_args and "pytest" in " ".join(cmd_args))
-
-            if is_test_step and return_code != 0:
-                current_error_log = stdout + stderr
-                current_return_code = return_code
-
-                for attempt in range(MAX_FIX_ATTEMPTS):
-                    print(f"   └─ ❗ Tests failed. Attempting self-correction ({attempt + 1}/{MAX_FIX_ATTEMPTS})...")
-                    file_to_test = memory.recall('last_file_written')
-                    if not file_to_test and len(cmd_args) > 0:
-                        for arg_path in cmd_args: 
-                            if Path(arg_path).is_file() and arg_path.endswith(".py"): 
-                                file_to_test = arg_path
-                                break
-                            elif Path(arg_path).is_dir(): 
-                                pass 
-
-                    if file_to_test:
-                        code_to_fix = utils.read_file(file_to_test)
-                        if code_to_fix:
-                            print(f"   └─ 🤖 LLM attempting to fix {file_to_test} based on error (first 300 chars):\n{current_error_log[:300]}...") 
-                            fixed_code = agent.attempt_fix(code_to_fix, current_error_log)
-                            print(f"   └─ Proposed fix by LLM for {file_to_test}:\n-------\n{fixed_code}\n-------")
-                            
-                            has_actual_code = any(line.strip() and not line.strip().startswith("#") for line in fixed_code.splitlines())
-                            if fixed_code and has_actual_code:
-                                utils.write_file(file_to_test, fixed_code)
-                                print(f"   └─ ✨ Applied potential fix to {file_to_test}. Retrying tests...")
-                                current_return_code, retry_stdout, retry_stderr = utils.execute_command(" ".join(cmd_args))
-                                current_error_log = retry_stdout + retry_stderr 
-
-                                if current_return_code == 0:
-                                    print("   └─ ✅ Self-correction successful! Tests now pass.")
-                                    break 
-                                else:
-                                    print(f"   └─ ❌ Self-correction attempt {attempt + 1} failed. Tests still failing.")
-                                    if attempt + 1 == MAX_FIX_ATTEMPTS:
-                                        print(f"      └─ Max fix attempts reached. Last error log:\n{current_error_log}")
-                            else:
-                                print(f"   └─ ⚠️ LLM did not provide a valid fix on attempt {attempt + 1}. Stopping self-correction for this step.")
-                                break 
-                        else:
-                            print(f"   └─ ⚠️ Could not read file {file_to_test} to attempt fix. Stopping self-correction.")
-                            break 
-                    else:
-                        print("   └─ ⚠️ Could not determine which file to fix for self-correction. Stopping.")
-                        break 
-                else: 
-                    if current_return_code != 0: 
-                        print("   └─ ❌ Self-correction ultimately failed after all attempts.")
-                        
-        print("\n✅ Plan execution complete.")
+        execute_plan_with_self_correction(plan, memory, command_manager, agent)
+    register("execute", handle_execute, "Executes the most recently created plan.")
 
     def handle_plan(args):
         if not args:
             print("Usage: plan \"<your high-level goal>\"")
             return
-
         goal = " ".join(args)
         plan = agent.create_plan(goal)
-
         print("\n--- Generated Plan ---")
         if plan and not (isinstance(plan, list) and len(plan) > 0 and "Failed to generate" in plan[0]):
             memory.remember('last_plan', plan)
@@ -465,56 +346,21 @@ def start_cli_loop():
             print("----------------------\n")
             print("To run this plan, use the 'execute' command.")
         elif isinstance(plan, list) and len(plan) > 0 :
-            print(plan[0]) 
+            print(plan[0])
             print("----------------------\n")
         else:
             print("Failed to generate a plan or the plan was empty.")
             print("----------------------\n")
     register("plan", handle_plan, "Creates a multi-step plan to achieve a goal.")
-    register("execute", handle_execute, "Executes the most recently created plan.")
 
     def handle_watch(args):
         start_watching()
     register("watch", handle_watch, "Enters watch mode to provide proactive suggestions on file changes.")
 
-    def handle_profile(args):
-        if not args:
-            print("Usage: profile [get|set|clear] [<category> <key> <value>]")
-            print("Current profile data:")
-            print(user_profile.get_all_data())
-            return
-
-        action = args[0].lower()
-        if action == "get":
-            if len(args) == 1:
-                print(user_profile.get_all_data())
-            elif len(args) == 2: 
-                category_name = args[1]
-                category_data = user_profile.data.get(category_name) 
-                if category_data is not None: 
-                    if category_data: 
-                        print(f"Preferences in category '{category_name}':")
-                        for key, value_item in category_data.items(): 
-                            print(f"  {key}: {value_item}")
-                    else:
-                        print(f"Category '{category_name}' is empty.")
-                else:
-                    print(f"Category '{category_name}' not found.")
-            elif len(args) >= 3:
-                value = user_profile.get_preference(args[1], args[2])
-                print(f"{args[1]}.{args[2]} = {value if value is not None else 'Not set'}")
-            else:
-                print("Usage: profile get [<category> [<key>]]")
-        elif action == "set":
-            if len(args) >= 4:
-                user_profile.add_preference(args[1], args[2], " ".join(args[3:]))
-            else:
-                print("Usage: profile set <category> <key> <value>")
-        elif action == "clear":
-            user_profile.clear_profile()
-        else:
-            print(f"Unknown profile action: {action}. Use 'get', 'set', or 'clear'.")
-    register("profile", handle_profile, "Manages user profile settings.")
+    # --- Profile & LLM Configuration Handlers ---
+    def profile_command_wrapper(args):
+        handle_profile_command(args, user_profile)
+    register("profile", profile_command_wrapper, "Manages user profile settings.")
 
     def handle_gauntlet_edit(args):
         print("🚀 Launching Gauntlet Test Editor...")
@@ -525,67 +371,9 @@ def start_cli_loop():
             print(f"❌ Failed to launch Gauntlet Editor: {e}")
     register("gauntlet edit", handle_gauntlet_edit, "Opens the interactive Gauntlet Test Editor.")
 
-    def handle_assess_model(args):
-        if not cli_llm_provider or not cli_llm_provider.is_available():
-            print("❌ Cannot assess model: No LLM provider is available or configured correctly.")
-            return
-
-        print(f"Preparing to assess LLM: {cli_llm_provider.PROVIDER_NAME} - {cli_llm_provider.model_name}")
-        assessor = CapabilityAssessor(llm_provider=cli_llm_provider, code_generator=code_generator, idea_synthesizer=idea_synth)
-        capability_profile = assessor.run_gauntlet()
-
-        print("\n--- LLM Capability Profile ---")
-        print(json.dumps(capability_profile, indent=2))
-        print("----------------------------\n")
-
-        if capability_profile:
-            provider_name = capability_profile.get("provider_name")
-            model_name = capability_profile.get("model_name")
-            if provider_name and model_name:
-                user_profile.save_gauntlet_profile(provider_name, model_name, capability_profile)
-
-    register("assess model", handle_assess_model, "Runs capability tests (gauntlet) on the current LLM.")
-
-    def handle_llm_config(args):
-        if not args:
-            print("Usage: llm <status|use|config> [options...]")
-            return
-
-        action = args[0].lower()
-        if action == "status":
-            active_provider_from_profile = user_profile.get_preference("llm_provider_config", "active_provider")
-            effective_active_provider = active_provider_from_profile or "gemini" 
-            print(f"Effective Active LLM Provider: {effective_active_provider}")
-            if not active_provider_from_profile:
-                print("  (Note: No active provider explicitly set in profile, defaulting to Gemini)")
-
-            provider_configs = user_profile.get_preference("llm_provider_config", "providers", {})
-            
-            for provider_name_key in ["gemini", "ollama"]: 
-                print(f"\nSettings for {provider_name_key.capitalize()}:")
-                config = provider_configs.get(provider_name_key, DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"].get(provider_name_key, {})) 
-                for key, value in config.items():
-                    val_display = "*******" if "api_key" in key and value else value 
-                    print(f"  - {key}: {val_display}")
-        elif action == "use": 
-            if len(args) < 2 or args[1].lower() not in ["gemini", "ollama"]:
-                print("Usage: llm use <gemini|ollama>")
-                return
-            provider_name = args[1].lower()
-            user_profile.add_preference("llm_provider_config", "active_provider", provider_name)
-            print(f"Active LLM provider set to: {provider_name}. Restart Giblet for changes to take full effect in current session.")
-        elif action == "config":
-            if len(args) < 4:
-                print("Usage: llm config <provider_name> <setting_key> <setting_value>")
-                return
-            provider_name = args[1].lower()
-            key = args[2]
-            value = " ".join(args[3:])
-            user_profile.add_preference(("llm_provider_config", "providers", provider_name), key, value) 
-            print(f"Set {key} = {value} for {provider_name}. Restart Giblet for changes to take full effect.")
-        else:
-            print(f"Unknown llm command: {action}. Use 'status', 'use', or 'config'.")
-    register("llm", handle_llm_config, "Manages LLM provider configurations.")
+    def llm_config_command_wrapper(args):
+        handle_llm_config_command(args, user_profile)
+    register("llm", llm_config_command_wrapper, "Manages LLM provider configurations.")
 
     def handle_feedback(args):
         if not args or args[0].lower() not in ['good', 'bad', 'ok', 'positive', 'negative', 'neutral']:
@@ -726,166 +514,46 @@ def start_cli_loop():
                                 print(f"❌ Failed to save skill '{new_skill_name}'.")
     register("history", handle_history, "Views command history.")
     
+    def handle_assess_model(args):
+        if not cli_llm_provider or not cli_llm_provider.is_available():
+            print("❌ Cannot assess model: No LLM provider is available or configured correctly.")
+            return
+
+        print(f"Preparing to assess LLM: {cli_llm_provider.PROVIDER_NAME} - {cli_llm_provider.model_name}")
+        assessor = CapabilityAssessor(llm_provider=cli_llm_provider, code_generator=code_generator, idea_synthesizer=idea_synth)
+        capability_profile = assessor.run_gauntlet()
+
+        print("\n--- LLM Capability Profile ---")
+        print(json.dumps(capability_profile, indent=2))
+        print("----------------------------\n")
+        if capability_profile:
+            provider_name = capability_profile.get("provider_name")
+            model_name = capability_profile.get("model_name")
+            if provider_name and model_name:
+                user_profile.save_gauntlet_profile(provider_name, model_name, capability_profile)
+    register("assess model", handle_assess_model, "Runs capability tests (gauntlet) on the current LLM.")
+
     # <<< 3. ADD NEW HANDLER FOR 'analyze duplicates'
     def handle_analyze_duplicates(args):
         """Runs the duplication analyzer and prints a formatted report."""
-        report = duplication_analyzer.analyze()
-        
-        print("\n--- Code Duplication Report ---")
-        
-        # --- Print Syntactic Results ---
-        syntactic_dupes = report.get('syntactic', [])
-        if not syntactic_dupes:
-            print("\n✅ No STRUCTURALLY duplicate functions found.")
-        else:
-            print(f"\n🚨 Found {len(syntactic_dupes)} group(s) of STRUCTURALLY duplicate functions:")
-            for i, group in enumerate(syntactic_dupes, 1):
-                print(f"\n--- Structural Group {i} ---")
-                for location in group:
-                    print(f"  - File: {location['file']}, Function: `{location['function_name']}`, Line: {location['line_number']}")
-
-        # --- Print Semantic Results ---
-        semantic_dupes = report.get('semantic', [])
-        if not semantic_dupes:
-            print("\n✅ No CONCEPTUALLY similar functions found.")
-        else:
-            print(f"\n🚨 Found {len(semantic_dupes)} group(s) of CONCEPTUALLY similar functions:")
-            for i, group in enumerate(semantic_dupes, 1):
-                print(f"\n--- Conceptual Group {i} ---")
-                for location in group:
-                    print(f"  - File: {location['file']}, Function: `{location['function_name']}`, Line: {location['line_number']}")
-                    print(f"    Docstring: \"{location['docstring']}\"")
-        print("\n---------------------------------\n")
+        report = duplication_analyzer.analyze()        
+        display_duplication_report(report)
 
     # <<< 4. REGISTER THE NEW COMMAND
     register("analyze duplicates", handle_analyze_duplicates, "Scans for duplicate code.")
 
-    def handle_genesis(args):
-        valid_subcommands = ["start", "generate-readme", "generate-roadmap", "scaffold", "publish", "random", "log"]
-        if not args or args[0].lower() not in valid_subcommands:
-            print("Usage: genesis <subcommand> [options...]")
-            print(f"Valid subcommands: {', '.join(valid_subcommands)}")
-            return
-        
-        subcommand = args[0].lower()
-        if subcommand == "start":
-            if len(args) < 2:
-                print("Usage: genesis start \"<your initial project idea>\"")
-                return
-            initial_idea = " ".join(args[1:])
-            _run_genesis_interview(initial_idea, idea_interpreter_cli, memory)
-        
-        elif subcommand == "random":
-            print("🎲 Summoning a strange and wonderful new project idea...")
-            try:
-                response = httpx.post("http://localhost:8000/ideas/random_weird", timeout=60)
-                response.raise_for_status()
-                data = response.json()
-                random_idea = data.get("idea")
-                if random_idea:
-                    _run_genesis_interview(random_idea, idea_interpreter_cli, memory)
-                else:
-                    print("❌ The API did not return a random idea.")
-            except Exception as e:
-                print(f"❌ Failed to get a random idea from the API: {e}")
-
-        elif subcommand == "generate-readme":
-            print("\nGenerating Project README...")
-            last_brief = memory.recall("last_genesis_brief")
-            if not isinstance(last_brief, dict) or not last_brief:
-                print("❌ No project brief found. Please run `genesis start` first.")
-                return
-            
-            readme_content = readme_generator_cli.generate(last_brief)
-            print("\n--- Generated README.md ---\n" + readme_content + "\n---------------------------\n")
-            save_file_confirm = input("Save this content to README.md? (y/n): ").lower()
-            if save_file_confirm == 'y':
-                if utils.write_file("README.md", readme_content):
-                    print("✅ README.md saved successfully!")
-                else:
-                    print("❌ Failed to save README.md.")
-            else:
-                print("Save to file cancelled.")
-
-        elif subcommand == "generate-roadmap":
-            print("\nGenerating Project Roadmap...")
-            last_brief = memory.recall("last_genesis_brief")
-            if not isinstance(last_brief, dict) or not last_brief:
-                print("❌ No project brief found. Please run `genesis start` first.")
-                return
-            
-            roadmap_content = roadmap_generator_cli.generate(last_brief)
-            print("\n--- Generated roadmap.md ---\n" + roadmap_content + "\n----------------------------\n")
-            
-            save_confirm = input("Save this content to roadmap.md? (y/n): ").lower()
-            if save_confirm == 'y':
-                if utils.write_file("roadmap.md", roadmap_content):
-                    print("✅ roadmap.md saved successfully!")
-                else:
-                    print("❌ Failed to save roadmap.md.")
-            else:
-                print("Save cancelled.")
-
-        elif subcommand == "scaffold":
-            print("\n🏗️ Scaffolding local project...")
-            last_brief = memory.recall("last_genesis_brief")
-            if not isinstance(last_brief, dict) or not last_brief:
-                print("❌ No project brief found. Please run `genesis start` first.")
-                return
-
-            project_name = last_brief.get("title", "new_giblet_project")
-            payload = {"project_name": project_name, "project_brief": last_brief}
-
-            try:
-                response = httpx.post("http://localhost:8000/project/scaffold_local", json=payload, timeout=60)
-                response.raise_for_status()
-                data = response.json()
-                print(f"✅ {data.get('message', 'Local project scaffolded successfully.')}")
-                if data.get('path'):
-                    print(f"   Project path: {data.get('path')}")
-            except httpx.RequestError:
-                print("❌ API Request Failed: Could not connect to Giblet API.")
-            except httpx.HTTPStatusError as e:
-                print(f"❌ API returned error: {e.response.status_code} - {e.response.text}")
-            except Exception as e:
-                print(f"❌ An unexpected error occurred: {e}")
-
-        elif subcommand == "publish":
-            print("\n☁️ Creating GitHub repository...")
-            last_brief = memory.recall("last_genesis_brief")
-            if not isinstance(last_brief, dict) or not last_brief:
-                print("❌ No project brief found. Please run `genesis start` first.")
-                return
-
-            repo_name = last_brief.get("title", "new-giblet-project").lower().replace(" ", "-")
-            description = last_brief.get("summary", "A new project generated by The Giblet.")
-            payload = {"repo_name": repo_name, "description": description, "private": True}
-
-            try:
-                response = httpx.post("http://localhost:8000/project/create_github_repo", json=payload, timeout=60)
-                response.raise_for_status()
-                data = response.json()
-                print(f"✅ {data.get('message', 'GitHub repository created successfully.')}")
-            except Exception as e:
-                print(f"❌ Failed to create GitHub repository: {e}")
-
-        elif subcommand == "log":
-            if len(args) < 3:
-                print("Usage: genesis log <project_name> \"<initial_brief>\"")
-                return
-            project_name_arg = args[1]
-            initial_brief_arg = " ".join(args[2:])
-            placeholder_settings = {
-                "readme_style": style_manager_for_cli.get_preference("readme.default_style", "standard"),
-                "roadmap_format": style_manager_for_cli.get_preference("roadmap.default_format", "phase_based"),
-                "tone": style_manager_for_cli.get_preference("general_tone", "neutral")
-            }
-            genesis_logger_cli.log_project_creation(
-                project_name=project_name_arg,
-                initial_brief=initial_brief_arg,
-                genesis_settings_used=placeholder_settings,
-            )
-    register("genesis", handle_genesis, "Manages project genesis and document generation.")
+    def genesis_command_wrapper(args):
+        """Wrapper to pass dependencies to the external genesis handler."""
+        handle_genesis_command(
+            args,
+            idea_interpreter_cli,
+            memory,
+            readme_generator_cli,
+            roadmap_generator_cli,
+            genesis_logger_cli,
+            style_manager_for_cli
+        )
+    register("genesis", genesis_command_wrapper, "Manages project genesis and document generation.")
 
     def display_just_in_time_suggestions(last_command_name: str | None, last_args: list | None = None):
         if not proactive_learner_instance or not project_contextualizer_cli:

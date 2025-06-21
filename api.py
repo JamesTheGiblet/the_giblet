@@ -149,7 +149,7 @@ class ScaffoldResponse(BaseModel):
  message: str
 # 1. Add these new Pydantic models at the top with the others
 class RefactorRequest(BaseModel):
-    filepath: str
+    code_content: str # Changed from filepath to code_content
     instruction: str
 
 class WriteFileRequest(BaseModel):
@@ -171,6 +171,15 @@ class AgentPlanResponse(BaseModel):
 class AgentExecuteResponse(BaseModel):
     message: str
     steps_executed: int
+
+# New Pydantic models for GitHub file browsing
+class GitHubRepoRequest(BaseModel):
+    owner: str
+    repo: str
+
+class GitHubFileRequest(BaseModel):
+    owner: str
+    repo: str
     tests_failed_initial: int = 0
     fix_attempts: int = 0
     self_correction_successful: bool | None = None
@@ -307,16 +316,19 @@ def generate_tests_endpoint(request: TestGenerationRequest):
 # 2. Add these new endpoints at the end of the file
 @app.post("/refactor")
 def refactor_code_endpoint(request: RefactorRequest):
-    """Reads a file, generates a refactoring, and returns both versions."""
-    original_code = utils.read_file(request.filepath)
-    if original_code is None:
-        return {"error": f"File not found: {request.filepath}"}
-
-    refactored_code = code_generator.refactor_code(original_code, request.instruction)
+    """Generates a refactoring of provided code content, and returns both versions."""
+    original_code = request.code_content # Directly use code_content
+    if not original_code.strip():
+        raise HTTPException(status_code=400, detail="Code content cannot be empty.")
+    
+    refactor_result = code_generator.refactor_code(original_code, request.instruction)
+    refactored_code = refactor_result.get("refactored_code", f"# Error: No code returned from refactoring.\n{original_code}")
+    explanation = refactor_result.get("explanation", "No explanation was provided.")
 
     return {
         "original_code": original_code,
-        "refactored_code": refactored_code
+        "refactored_code": refactored_code,
+        "explanation": explanation
     }
 
 @app.post("/file/write")
@@ -363,6 +375,22 @@ def generate_stubs_endpoint(request: StubRequest):
     return {"error": f"Failed to generate stubs for {request.filepath}."}
 
 
+# --- GitHub Browsing Endpoints ---
+@app.post("/github/repo/contents")
+def github_repo_contents_endpoint(request: GitHubRepoRequest):
+    """Lists all files in a given GitHub repository."""
+    contents = github_client_api.list_repo_contents(owner=request.owner, repo=request.repo)
+    if isinstance(contents, dict) and "error" in contents:
+        raise HTTPException(status_code=contents.get("status_code", 500), detail=contents["error"])
+    return {"files": contents}
+
+@app.post("/github/repo/file")
+def github_file_content_endpoint(request: GitHubFileRequest):
+    """Gets the content of a specific file from a GitHub repository."""
+    file_data = github_client_api.get_file_content(owner=request.owner, repo=request.repo, filepath=request.filepath)
+    if "error" in file_data:
+        raise HTTPException(status_code=file_data.get("status_code", 500), detail=file_data["error"])
+    return file_data
 # --- User Profile API Endpoints ---
 @app.get("/profile", response_model=ProfileResponse)
 def get_user_profile_endpoint():

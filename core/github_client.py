@@ -2,7 +2,7 @@
 
 import os
 import httpx
-import logging
+import logging, base64
 from typing import Optional, Dict, Any
 
 class GitHubClient:
@@ -83,3 +83,62 @@ class GitHubClient:
             self.logger.error(f"An unexpected error occurred during GitHub repo creation: {e}")
             return {"error": str(e)}
 
+    def list_repo_contents(self, owner: str, repo: str, path: str = "") -> list[str] | dict:
+        """
+        Lists all files in a GitHub repository recursively.
+        """
+        if not self.token:
+            return {"error": "GitHub token not configured."}
+
+        all_files = []
+        
+        def get_contents(current_path):
+            endpoint = f"{self.API_URL}/repos/{owner}/{repo}/contents/{current_path}"
+            try:
+                with httpx.Client() as client:
+                    response = client.get(endpoint, headers=self.headers, timeout=20.0)
+                    response.raise_for_status()
+                
+                items = response.json()
+                for item in items:
+                    if item['type'] == 'file':
+                        all_files.append(item['path'])
+                    elif item['type'] == 'dir':
+                        get_contents(item['path']) # Recurse into subdirectory
+            except httpx.HTTPStatusError as e:
+                # This will be caught by the outer try-except
+                raise e
+        
+        try:
+            get_contents(path)
+            return sorted(all_files)
+        except httpx.HTTPStatusError as e:
+            error_details = e.response.json()
+            message = error_details.get("message", "An unknown error occurred.")
+            self.logger.error(f"GitHub API error listing contents for '{owner}/{repo}': {message}")
+            return {"error": message, "status_code": e.response.status_code}
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during GitHub repo content listing: {e}")
+            return {"error": str(e)}
+
+    def get_file_content(self, owner: str, repo: str, filepath: str) -> dict[str, Any]:
+        """Retrieves the content of a specific file from a GitHub repository."""
+        if not self.token:
+            return {"error": "GitHub token not configured."}
+
+        endpoint = f"{self.API_URL}/repos/{owner}/{repo}/contents/{filepath}"
+        self.logger.info(f"Fetching file content from GitHub: {owner}/{repo}/{filepath}")
+        try:
+            with httpx.Client() as client:
+                response = client.get(endpoint, headers=self.headers, timeout=20.0)
+                response.raise_for_status()
+            
+            data = response.json()
+            if data.get("encoding") == "base64":
+                content = base64.b64decode(data["content"]).decode('utf-8')
+                return {"filepath": filepath, "content": content}
+            else:
+                return {"error": "File content is not base64 encoded or encoding is missing."}
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during GitHub file content retrieval: {e}")
+            return {"error": str(e)}
