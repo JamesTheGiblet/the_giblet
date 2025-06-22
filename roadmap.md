@@ -581,3 +581,12 @@ python main.py
         [ ] * Review the overall Genesis Mode experience and its integration with the core workflow.
     
 ---
+# 🛠️ The Giblet: Build Roadmap v2 (Above and Beyond)
+
+**Goal:** Evolve The Giblet into a full-stack, enterprise-grade application by converting the Python backend to be fully asynchronous and introducing a Node.js/React frontend.
+**Tasks:**
+    * [ ] **Task 27.1: Convert Python Backend to Async:** Refactor the existing FastAPI application and core modules to be fully asynchronous, improving performance and scalability. This will involve using `async def` for all API endpoints and ensuring all I/O operations (file access, LLM calls) are non-blocking.
+    * [ ] **Task 27.2: Integrate MongoDB Persistence:** Replace the JSON file-based storage for memory, user profiles, and style preferences with a robust MongoDB database. This will require creating a new data access layer.
+    * [ ] **Task 27.3: Develop Node.js/Express Backend Service:** Create a new backend service specifically for the new user interface. This service will handle user authentication, serve the React application, and communicate with the Python AI backend for core tasks.
+    * [ ] **Task 27.4: Build React-based Frontend:** Develop a new, modern, and highly interactive user interface using React to replace the existing Streamlit dashboard.
+

@@ -53,7 +53,7 @@ class GitAnalyzer:
         Uses the IdeaSynthesizer to generate a summary of recent commits.
         """
         if not self.repo: return "Not a Git repository."
-        if not idea_synth.model: return "Idea Synthesizer is not available."
+        if not idea_synth.llm_provider or not idea_synth.llm_provider.is_available(): return "Idea Synthesizer is not available."
 
         print("🤖 Analyzing commit history for AI summary...")
         commits = self.get_commit_log(max_count=max_commits)

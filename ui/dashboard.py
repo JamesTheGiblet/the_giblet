@@ -3,6 +3,9 @@ import httpx
 import streamlit as st
 import sys
 from pathlib import Path
+import pandas as pd
+import json
+import io
 
 # This line ensures that the script can find your 'core' modules
 import difflib
@@ -11,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from ui.dashboard_api_client import GibletAPIClient
 from ui.dashboard_utils import format_code_diff
 from ui.session_state_manager import initialize_session_state
+from ui import home_page # Import the new home_page module
 from ui.dashboard_components import render_sidebar_navigation
 
 
@@ -24,6 +28,17 @@ def main():
         layout="wide"
     )
 
+    # --- Custom CSS for a narrower sidebar ---
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] {
+            width: 280px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     # --- Session State Initialization ---
     initialize_session_state()
     
@@ -35,8 +50,11 @@ def main():
 
     st.title("🧠 The Giblet: Project Cockpit")
 
-    # --- Tab Content ---
-    if st.session_state.active_tab == "🧬 Genesis Mode":
+    # --- Tab Content based on active_tab ---
+    if st.session_state.active_tab == "🏠 Home":
+        home_page.render()
+
+    elif st.session_state.active_tab == "🧬 Genesis Mode":
         st.header("🧬 Project Genesis Mode - Idea Interview")
         st.write("""
             Start a new project from scratch! Provide an initial idea, and The Giblet's
@@ -61,15 +79,13 @@ def main():
                 st.write("") 
                 if st.button("🎲 Surprise Me!", use_container_width=True, help="Generate a random, weird project idea to start with.", key="surprise_me_btn"):
                     with st.spinner("Summoning a strange idea..."):
-                        try: # Use the API client
-                            response_random_idea = api_client.get_random_weird_idea()
-                            response_random_idea.raise_for_status()
-                            data_random_idea = response_random_idea.json()
+                        try:
+                            # Use the dedicated API endpoint for generating a random idea.
+                            data_random_idea = api_client.get_random_weird_idea()
                             random_idea = data_random_idea.get("idea")
                             
                             if random_idea:
-                                response_genesis_start = httpx.post("http://localhost:8000/genesis/start", json={"initial_idea": random_idea}, timeout=60)
-                                response_genesis_start.raise_for_status()
+                                # Start the genesis session with the random idea
                                 data_genesis_start = api_client.genesis_start(random_idea)
 
                                 if data_genesis_start.get("error"):
@@ -84,7 +100,6 @@ def main():
                                     st.rerun()
                             else:
                                 st.error("The API did not return a random idea.")
-
                         except Exception as e:
                             st.error(f"Failed to get or process a random idea: {e}")
 
@@ -92,10 +107,9 @@ def main():
             if st.button("🚀 Start Interpretation", key="start_genesis_interpretation_btn"):
                 if initial_idea_input.strip():
                     with st.spinner("Interpreter is preparing questions..."):
-                        try: # Use the API client
-                            response = api_client.genesis_start(initial_idea_input)
-                            response.raise_for_status()
-                            data = response.json()
+                        try:
+                            # The API client returns a dictionary directly
+                            data = api_client.genesis_start(initial_idea_input)
                             if data.get("error"):
                                 st.error(f"Failed to start interpretation: {data['error']}")
                             else:
@@ -115,10 +129,9 @@ def main():
             if user_answer:
                 st.session_state.genesis_conversation.append({"role": "user", "content": user_answer})
                 with st.spinner("Interpreter is processing your answer..."):
-                    try: # Use the API client
-                        response = api_client.genesis_answer(user_answer)
-                        response.raise_for_status()
-                        data = response.json()
+                    try:
+                        # The API client returns a dictionary directly
+                        data = api_client.genesis_answer(user_answer)
 
                         if data.get("status") == "complete":
                             st.session_state.genesis_conversation.append({"role": "assistant", "content": "Great! I've synthesized a project brief based on our conversation."})
@@ -148,10 +161,9 @@ def main():
 
                 if st.button("Generate Project README", key="generate_project_readme_btn", use_container_width=True):
                     with st.spinner("Generating style-aware README..."):
-                        try:
+                        try: # The API client returns a dictionary directly
                             response = api_client.generate_readme(st.session_state.genesis_final_brief)
-                            response.raise_for_status()
-                            st.session_state.generated_readme = response.json().get("readme_content")
+                            st.session_state.generated_readme = response.get("readme_content")
                         except Exception as e:
                             st.error(f"Failed to generate README: {e}")
 
@@ -161,10 +173,9 @@ def main():
                 
                 if st.button("Generate Project Roadmap", key="generate_project_roadmap_btn", use_container_width=True):
                     with st.spinner("Generating style-aware roadmap..."):
-                        try: # Use the API client
+                        try: # The API client returns a dictionary directly
                             response = api_client.generate_roadmap(st.session_state.genesis_final_brief)
-                            response.raise_for_status()
-                            st.session_state.generated_roadmap = response.json().get("roadmap_content")
+                            st.session_state.generated_roadmap = response.get("roadmap_content")
                         except Exception as e:
                             st.error(f"Failed to generate roadmap: {e}")
 
@@ -172,10 +183,9 @@ def main():
                 with st.expander("Generated README.md", expanded=True):
                     st.markdown(st.session_state.generated_readme)
                     if st.button("Save README.md to disk", key="save_readme_disk_btn"):
-                            with st.spinner("Saving..."): # Use the API client
+                            with st.spinner("Saving..."):
                                 try:
-                                    write_response = api_client.write_file("README.md", st.session_state.generated_readme)
-                                    write_response.raise_for_status()
+                                    api_client.write_file("README.md", st.session_state.generated_readme)
                                     st.success("✅ README.md saved successfully!", icon="📄")
                                 except Exception as e:
                                     st.error(f"Failed to save README.md: {e}")
@@ -184,11 +194,10 @@ def main():
                     if st.button("Save README Style as Default", key="save_readme_style_btn"):
                         if st.session_state.get('last_readme_settings'):
                             with st.spinner("Saving default style..."):
-                                try: # Use the API client
-                                    response = api_client.set_style_preferences(
+                                try:
+                                    api_client.set_style_preferences(
                                         "readme", st.session_state.last_readme_settings
                                     )
-                                    response.raise_for_status()
                                     st.toast("✅ README style preferences updated!")
                                 except Exception as e:
                                     st.error(f"Failed to save style: {e}")
@@ -199,10 +208,9 @@ def main():
                 with st.expander("Generated roadmap.md", expanded=True):
                     st.markdown(st.session_state.generated_roadmap)
                     if st.button("Save roadmap.md to disk", key="save_roadmap_disk_btn"):
-                            with st.spinner("Saving..."): # Use the API client
+                            with st.spinner("Saving..."):
                                 try:
-                                    write_response = api_client.write_file("roadmap.md", st.session_state.generated_roadmap)
-                                    write_response.raise_for_status()
+                                    api_client.write_file("roadmap.md", st.session_state.generated_roadmap)
                                     st.success("✅ roadmap.md saved successfully!", icon="🗺️")
                                 except Exception as e:
                                     st.error(f"Failed to save roadmap.md: {e}")
@@ -217,12 +225,10 @@ def main():
                 with col1:
                     if st.button("Create Local Project Folder", use_container_width=True):
                         with st.spinner("Scaffolding local project..."):
-                            try: # Use the API client
-                                response = api_client.scaffold_local_project(
+                            try:
+                                data = api_client.scaffold_local_project(
                                     st.session_state.genesis_final_brief.get("title", "new_giblet_project"), st.session_state.genesis_final_brief
                                 )
-                                response.raise_for_status()
-                                data = response.json()
                                 st.success(data.get("message"))
                                 st.info(f"Project created at: {data.get('path')}")
                             except Exception as e:
@@ -231,15 +237,13 @@ def main():
                 with col2:
                     if st.button("Create Private GitHub Repo", use_container_width=True):
                         st.info("Ensure your `GITHUB_TOKEN` is set as an environment variable for the API server.", icon="🔑")
-                        with st.spinner("Creating GitHub repository..."): # Use the API client
+                        with st.spinner("Creating GitHub repository..."):
                             try:
-                                response = api_client.create_github_repo(
+                                data = api_client.create_github_repo(
                                     st.session_state.genesis_final_brief.get("title", "new-giblet_project").lower().replace(" ", "-"),
                                     st.session_state.genesis_final_brief.get("summary", "A new project generated by The Giblet."),
                                     True
                                 )
-                                response.raise_for_status()
-                                data = response.json()
                                 st.success(data.get("message"))
                                 st.markdown(f"**Repo URL:** {data.get('url')})")
                             except Exception as e:
@@ -255,15 +259,20 @@ def main():
 
     elif st.session_state.active_tab == "🗺️ Roadmap":
         st.header("🗺️ Project Roadmap")
-        try: # Increased timeout for robustness, as API server might be slow to initialize LLM components
-            response = api_client.get_roadmap()
-            response.raise_for_status()
-            data = response.json()
+        if st.session_state.get('roadmap_needs_update'):
+            st.toast("🔄 Roadmap updated based on new project location.", icon="🗺️")
+            st.session_state.roadmap_needs_update = False # Reset flag
+        try:
+            # Use the API client, which now directly returns the dictionary
+            data = api_client.get_roadmap()
+
+            # The 'data' variable is now the dictionary from the API response
             tasks = data.get("roadmap", [])
 
             if not tasks:
                 st.warning("No tasks found in roadmap.md")
             else:
+                # The rest of the logic remains the same
                 phases = {}
                 current_phase = "General Tasks"
                 for task in tasks:
@@ -279,16 +288,14 @@ def main():
                 for phase_name, phase_tasks in phases.items():
                     with st.expander(f"**{phase_name}**", expanded=True):
                         for task_item in phase_tasks:
-                            is_complete = (task_item['status'] == 'complete') # Check if task is complete
-                            st.checkbox(task_item['description'], value=is_complete, disabled=True, key=f"task_{phase_name}_{task_item['description'][:20]}") # Display checkbox
-        except httpx.RequestError as e: # Catch specific request errors
-            st.error(f"Could not connect to the Giblet API server. Please ensure it is running at {api_client.base_url}. Error: {e}") # More specific error message
-        except httpx.HTTPStatusError as e: # Catch HTTP status errors
-            st.error(f"API returned an error status {e.response.status_code} when loading roadmap: {e.response.text}") # Display HTTP status error
-        except Exception as e: # Catch any other unexpected errors
-            st.error(f"An unexpected error occurred while loading the roadmap: {e}") # Generic error message
+                            is_complete = (task_item['status'] == 'complete')
+                            st.checkbox(task_item['description'], value=is_complete, disabled=True, key=f"task_{phase_name}_{task_item['description'][:20]}")
 
-    elif st.session_state.active_tab == "🛠️ Agent & Generator":
+        except Exception as e:
+            # The API client now raises exceptions on failure, so we can catch them here
+            st.error(f"An error occurred while loading the roadmap: {e}")
+
+    elif st.session_state.active_tab == "🛠️ Code Agent":
         st.header("🛠️ Autonomous Agent & Code Generator")
         st.write("Define a high-level goal, let the agent create a plan, and then execute it.")
 
@@ -302,10 +309,8 @@ def main():
                 st.warning("Please enter a goal.")
             else:
                 with st.spinner("Agent is thinking and creating a plan..."):
-                    try: # Use the API client
-                        response = api_client.agent_plan(goal)
-                        response.raise_for_status()
-                        data = response.json()
+                    try: # The API client returns a dictionary directly
+                        data = api_client.agent_plan(goal)
                         if data.get("error"):
                             st.error(f"Failed to generate plan: {data['error']}")
                         else:
@@ -322,11 +327,9 @@ def main():
             st.warning("Review the plan carefully before execution.")
             if st.button("🚀 Execute Plan", type="primary", key="agent_execute_plan_btn"):
                 st.session_state.agent_execution_result = None
-                with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."): # Use the API client
-                    try:
-                        response = api_client.agent_execute()
-                        response.raise_for_status()
-                        st.session_state.agent_execution_result = response.json()
+                with st.spinner("Agent is executing the plan... This may take a while. Check API console for detailed logs."):
+                    try: # The API client returns a dictionary directly
+                        st.session_state.agent_execution_result = api_client.agent_execute()
                     except Exception as e:
                         st.error(f"Error during plan execution: {e}")
 
@@ -349,10 +352,10 @@ def main():
         # Source selection
         source_type = st.radio(
             "Select file source:",
-            ["Local Filesystem", "GitHub Repository"],
+            ["Project Files (Server)", "GitHub Repository", "Upload a File"],
             key="explorer_source_radio",
             horizontal=True,
-            on_change=lambda: st.session_state.update(explorer_files=[], explorer_selected_file_path=None, explorer_selected_file_content=None) # Reset on change
+            on_change=lambda: st.session_state.update(explorer_files=[], explorer_selected_file_path=None, explorer_selected_file_content=None)
         )
         st.session_state.explorer_source = source_type
 
@@ -370,32 +373,48 @@ def main():
                     if st.session_state.explorer_github_owner and st.session_state.explorer_github_repo: # Use the API client
                         with st.spinner("Fetching file list from GitHub..."):
                             try:
-                                response = api_client.list_github_repo_contents(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo)
-                                response.raise_for_status()
-                                st.session_state.explorer_files = response.json().get("files", [])
+                                response_data = api_client.list_github_repo_contents(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo)
+                                st.session_state.explorer_files = response_data.get("files", [])
                             except Exception as e:
                                 st.error(f"Failed to fetch GitHub repo contents: {e}")
                                 st.session_state.explorer_files = []
                     else:
                         st.warning("Please provide both GitHub owner and repo name.")
 
-        # --- Local Filesystem Source ---
-        else: # Local
-            if st.button("Refresh Local Files", key="refresh_local_files_btn"):
+        # --- Upload a File UI ---
+        elif st.session_state.explorer_source == "Upload a File":
+            st.info("Upload a file from your device to view its content. The file is not saved on the server.")
+            uploaded_file = st.file_uploader(
+                "Choose a file to view",
+                type=None, # Allow any file type
+                key="file_explorer_uploader"
+            )
+            if uploaded_file is not None:
+                # When a new file is uploaded, update the session state for the viewer
+                if uploaded_file.name != st.session_state.get('explorer_selected_file_path'):
+                    st.session_state.explorer_selected_file_path = uploaded_file.name
+                    try:
+                        # Read file content as string, assuming utf-8
+                        stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
+                        st.session_state.explorer_selected_file_content = stringio.read()
+                    except Exception as e:
+                        st.error(f"Error reading file '{uploaded_file.name}': Could not decode as UTF-8. It might be a binary file.")
+                        st.session_state.explorer_selected_file_content = f"# Error: Could not read file content.\n\n{e}"
+        # --- Project Files (Server) Source ---
+        else: # Project Files (Server)
+            if st.button("Refresh Project Files", key="refresh_local_files_btn"):
                 with st.spinner("Scanning local files..."): # Use the API client
                     try:
-                        response = api_client.list_local_files()
-                        response.raise_for_status()
-                        st.session_state.explorer_files = response.json().get("files", [])
+                        response_data = api_client.list_local_files()
+                        st.session_state.explorer_files = response_data.get("files", [])
                     except Exception as e:
                         st.error(f"Could not load file list: {e}")
                         st.session_state.explorer_files = []
             # Initial load for local files
             if not st.session_state.explorer_files:
                 try: # Use the API client
-                    response = api_client.list_local_files()
-                    response.raise_for_status()
-                    st.session_state.explorer_files = response.json().get("files", [])
+                    response_data = api_client.list_local_files()
+                    st.session_state.explorer_files = response_data.get("files", [])
                 except Exception: # Silently fail on initial load if API is not ready
                     pass
 
@@ -412,12 +431,9 @@ def main():
                 with st.spinner(f"Reading {selected_file}..."):
                     try: # Use the API client
                         if st.session_state.explorer_source == "GitHub Repository":
-                            read_response = api_client.get_github_file_content(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo, selected_file)
+                            file_data = api_client.get_github_file_content(st.session_state.explorer_github_owner, st.session_state.explorer_github_repo, selected_file)
                         else: # Local
-                            read_response = api_client.read_file(selected_file)
-                        
-                        read_response.raise_for_status()
-                        file_data = read_response.json()
+                            file_data = api_client.read_file(selected_file)
                         st.session_state.explorer_selected_file_content = file_data.get("content", "# Error: Could not load content.")
                     except Exception as e:
                         st.error(f"Error reading file '{selected_file}': {e}")
@@ -436,11 +452,12 @@ def main():
                 readme_path = f"{st.session_state.explorer_selected_file_path}.readme.md"
                 # This part only works for local files currently.
                 # A more advanced implementation would check for .readme.md files in GitHub too.
-                if st.session_state.explorer_source == "Local Filesystem" and readme_path in st.session_state.explorer_files: # Use the API client
+                if st.session_state.explorer_source == "Project Files (Server)" and readme_path in st.session_state.explorer_files:
                     with st.spinner(f"Loading documentation..."):
-                        readme_resp = api_client.read_file(readme_path)
-                        if readme_resp.status_code == 200:
-                            st.markdown(readme_resp.json().get("content", "*Could not load documentation.*"))
+                        readme_data = api_client.read_file(readme_path)
+                        content = readme_data.get("content")
+                        if content:
+                            st.markdown(content)
                         else:
                             st.warning("Documentation file found but could not be read.")
                 else:
@@ -451,11 +468,10 @@ def main():
 
         st.subheader("Generate Changelog")
         if st.button("Generate from Git History", key="btn_changelog"):
-            with st.spinner("Analyzing Git history..."): # Use the API client
+            with st.spinner("Analyzing Git history..."):
                 try:
                     response = api_client.generate_changelog()
-                    response.raise_for_status()
-                    st.success(response.json().get("message", "Changelog generated!"))
+                    st.success(response.get("message", "Changelog generated!"))
                 except Exception as e:
                     st.error(f"Failed to generate changelog: {e}")
 
@@ -464,12 +480,11 @@ def main():
         st.subheader("Add TODO Stubs")
         stub_filepath = st.text_input("Enter the path to a Python file:", "core/agent.py", key="txt_stub_file")
         if st.button("Add Stubs", key="btn_stubs"):
-            if stub_filepath: # Use the API client
+            if stub_filepath:
                 with st.spinner(f"Analyzing {stub_filepath}..."):
                     try:
                         response = api_client.add_stubs(stub_filepath)
-                        response.raise_for_status()
-                        st.success(response.json().get("message", "Stubs added!"))
+                        st.success(response.get("message", "Stubs added!"))
                     except Exception as e:
                         st.error(f"Failed to add stubs: {e}")
             else:
@@ -481,16 +496,231 @@ def main():
         st.write("Scan the project codebase for structurally and conceptually similar functions.")
         
         if st.button("⚡ Scan for Duplicates", use_container_width=True, type="primary"):
-            st.session_state.duplication_report = None # Clear previous report # Use the API client
+            st.session_state.duplication_report = None # Clear previous report
             with st.spinner("Analyzing codebase... This may take a moment."):
                 try:
-                    response = api_client.analyze_duplicates()
-                    response.raise_for_status()
-                    st.session_state.duplication_report = response.json()
+                    st.session_state.duplication_report = api_client.analyze_duplicates()
                 except Exception as e:
                     st.error(f"Failed to run duplication analysis: {e}")
                     st.session_state.duplication_report = {"error": str(e)}
+
+    elif st.session_state.active_tab == "👤 Profile":
+        st.header("👤 User Profile")
+        st.write("View and manage your preferences and feedback history.")
+
+        try:
+            # Load the profile data from the API and parse the JSON content
+            file_content_response = api_client.read_file("data/user_profile.json")
+            if "content" in file_content_response:
+                profile_data = json.loads(file_content_response["content"])
+            else:
+                st.error("Could not find 'content' in API response for user profile.")
+                profile_data = {} # Fallback to empty dict
+
+            # --- Preferences Section ---
+            st.subheader("⚙️ Edit Your Profile & Preferences")
+            
+            # Use a form to group inputs and the save button
+            with st.form(key="preferences_form"):
+                st.markdown("##### User & Business Details")
+                user_name = st.text_input("User Name", value=profile_data.get('user_name', ''), help="Your display name.")
+                business_name = st.text_input("Business Name", value=profile_data.get('business_name', ''), help="The name of your company or project.")
+                
+                st.markdown("##### Project Settings")
+                project_root = st.text_input("Project Root Directory", value=profile_data.get('project_root', '.'), help="The root directory for file operations on the server.")
+
+                st.divider()
+
+                st.markdown("##### AI Behavior")
+                preferences = profile_data.get("preferences", {})
+
+                # Define options for the select boxes
+                verbosity_options = ["low", "medium", "high"]
+                tone_options = ["neutral", "formal", "casual", "humorous"]
+                persona_options = ["innovator", "pragmatist", "critic", "visionary"]
+
+                # Get current index, default to a sensible value if not found
+                try:
+                    verbosity_index = verbosity_options.index(preferences.get('ai_verbosity', 'medium'))
+                except ValueError:
+                    verbosity_index = 1 # Default to 'medium'
+                
+                try:
+                    tone_index = tone_options.index(preferences.get('ai_tone', 'neutral'))
+                except ValueError:
+                    tone_index = 0 # Default to 'neutral'
+
+                try:
+                    persona_index = persona_options.index(preferences.get('idea_synth_persona', 'innovator'))
+                except ValueError:
+                    persona_index = 0 # Default to 'innovator'
+
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    ai_verbosity = st.selectbox("AI Verbosity", options=verbosity_options, index=verbosity_index, help="Controls how talkative the AI is.")
+                with col2:
+                    ai_tone = st.selectbox("AI Tone", options=tone_options, index=tone_index, help="Controls the personality of the AI's responses.")
+                with col3:
+                    idea_synth_persona = st.selectbox("Idea Persona", options=persona_options, index=persona_index, help="The persona the AI adopts when synthesizing new ideas.")
+                
+                submitted = st.form_submit_button("💾 Save Profile & Preferences")
+
+                if submitted:
+                    # Update user and business name
+                    profile_data['user_name'] = user_name
+                    profile_data['business_name'] = business_name
+                    profile_data['project_root'] = project_root
+
+                    # Create the updated preferences dictionary
+                    updated_preferences = {
+                        "ai_verbosity": ai_verbosity,
+                        "ai_tone": ai_tone,
+                        "idea_synth_persona": idea_synth_persona
+                    }
+                    
+                    # Update the main profile data object
+                    profile_data['preferences'] = updated_preferences
+                    
+                    # Write the updated data back to the JSON file via the API
+                    with st.spinner("Saving..."):
+                        try:
+                            updated_content = json.dumps(profile_data, indent=4)
+                            api_client.write_file("data/user_profile.json", updated_content)
+                            st.toast("✅ Profile saved successfully!")
+                        except Exception as e:
+                            st.error(f"Failed to save profile: {e}")
+
+            st.divider()
+
+            # --- Feedback Log Section ---
+            st.subheader("📜 Feedback Log")
+            feedback_log = profile_data.get("feedback_log", [])
+            if feedback_log:
+                df = pd.DataFrame(feedback_log)
+                # Reorder and format columns for better readability
+                df = df[['timestamp', 'rating', 'comment', 'context_id']]
+                df['timestamp'] = pd.to_datetime(df['timestamp']).dt.strftime('%Y-%m-%d %H:%M')
+                st.dataframe(df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No feedback history found.")
+        except Exception as e:
+            st.error(f"An unexpected error occurred while loading the user profile: {e}")
+            st.warning("Please ensure `data/user_profile.json` exists and is accessible by the API server.")
     
+    elif st.session_state.active_tab == "🎨 My Vibe":
+        st.header("🎨 My Vibe - Style Preferences")
+        st.write("Customize the default styles for generated content like READMEs and roadmaps.")
+        st.info("Changes saved here will become the new defaults for the `genesis generate-readme` and `genesis generate-roadmap` commands.")
+
+        # Define a default structure for style preferences
+        DEFAULT_STYLE_PREFERENCE_STRUCTURE = {
+            "readme": {
+                "default_style": "standard",
+                "default_tone": "professional",
+                "default_sections": [
+                    "Overview",
+                    "Features",
+                    "Getting Started",
+                    "Roadmap Link",
+                    "Contributing"
+                ]
+            },
+            "roadmap": {
+                "default_format": "phase_based",
+                "default_tone": "neutral"
+            },
+            "project": {
+                "default_repo_visibility": "private",
+                "default_primary_language": "python",
+                "include_gitignore": True, # Keep as boolean for internal logic
+                "include_license": "MIT"
+            },
+            "general_tone": "neutral", # This is a direct string, not a dict
+            "coding_style": {
+                "preferred_formatter": "black",
+                "docstring_format": "google"
+            }
+        }
+
+        style_data = {}
+        try:
+            # Use the API client to read the style preferences
+            file_content_response = api_client.read_file("data/style_preference.json")
+            if "content" in file_content_response:
+                loaded_data = json.loads(file_content_response["content"])
+                if isinstance(loaded_data, dict):
+                    style_data = loaded_data
+                else:
+                    st.warning("`data/style_preference.json` contains invalid JSON (not an object at root). Using default preferences.")
+                    style_data = DEFAULT_STYLE_PREFERENCE_STRUCTURE.copy()
+            else:
+                st.warning("`data/style_preference.json` not found or empty. Using default preferences.")
+                style_data = DEFAULT_STYLE_PREFERENCE_STRUCTURE.copy()
+        except json.JSONDecodeError:
+            st.warning("Error decoding `data/style_preference.json`. File might be corrupted. Using default preferences.")
+            style_data = DEFAULT_STYLE_PREFERENCE_STRUCTURE.copy()
+        except Exception as e:
+            st.error(f"Failed to load style preferences: {e}. Using default preferences.")
+            style_data = DEFAULT_STYLE_PREFERENCE_STRUCTURE.copy()
+
+        # Now, the form is always rendered, and style_data is always a dictionary
+        with st.form("my_vibe_form"):
+            # Create a dictionary to hold the new values from the widgets
+            new_settings = {}
+
+            for category, settings in style_data.items():
+                # Handle direct string values for categories like "general_tone"
+                if isinstance(settings, dict):
+                    with st.expander(f"🖌️ {category.replace('_', ' ').title()} Style", expanded=True):
+                        new_settings[category] = {}
+                        for key, value in settings.items():
+                            widget_key = f"style_{category}_{key}"
+                            # Convert boolean to string for text_input
+                            display_value = str(value).lower() if isinstance(value, bool) else str(value)
+                            new_value = st.text_input(
+                                label=key.replace('_', ' ').title(),
+                                value=display_value,
+                                key=widget_key,
+                                help=f"Set the default for '{key}' in the '{category}' category."
+                            )
+                            # Attempt to convert back to original type if possible, otherwise keep as string
+                            if new_value.lower() == 'true':
+                                new_settings[category][key] = True
+                            elif new_value.lower() == 'false':
+                                new_settings[category][key] = False
+                            else:
+                                new_settings[category][key] = new_value
+                else: # Handle direct string values for categories
+                    widget_key = f"style_{category}_value"
+                    new_value = st.text_input(
+                        label=f"{category.replace('_', ' ').title()} Value",
+                        value=str(settings),
+                        key=widget_key,
+                        help=f"Set the default value for '{category}'."
+                    )
+                    new_settings[category] = new_value
+            
+            submitted = st.form_submit_button("💾 Save All Style Changes", use_container_width=True, type="primary")
+
+            if submitted:
+                with st.spinner("Saving style preferences..."):
+                    try:
+                        # Convert boolean values back to actual booleans if they were originally so
+                        # This is important for `include_gitignore` in `project` category
+                        final_settings_to_save = new_settings.copy()
+                        if "project" in final_settings_to_save and "include_gitignore" in final_settings_to_save["project"]:
+                            if isinstance(final_settings_to_save["project"]["include_gitignore"], str):
+                                if final_settings_to_save["project"]["include_gitignore"].lower() == "true":
+                                    final_settings_to_save["project"]["include_gitignore"] = True
+                                elif final_settings_to_save["project"]["include_gitignore"].lower() == "false":
+                                    final_settings_to_save["project"]["include_gitignore"] = False
+
+                        updated_content = json.dumps(final_settings_to_save, indent=2)
+                        api_client.write_file("data/style_preference.json", updated_content)
+                        st.toast("✅ Style preferences saved successfully!")
+                    except Exception as e:
+                        st.error(f"An error occurred while saving: {e}")
+
     elif st.session_state.active_tab == "✨ Refactor":
         st.header("✨ Code Refactor & Diff")
         st.write("Enter Python code and a refactoring instruction. The Giblet will suggest a refactored version and show the differences.")
@@ -510,11 +740,9 @@ def main():
                     st.warning("Please provide a refactoring instruction.")
                     st.stop()
 
-                with st.spinner("Refactoring code..."): # Use the API client
-                    try:
-                        response = api_client.refactor_code(refactor_code_input, refactor_instruction)
-                        response.raise_for_status()
-                        data = response.json()
+                with st.spinner("Refactoring code..."):
+                    try: # The API client returns a dictionary directly
+                        data = api_client.refactor_code(refactor_code_input, refactor_instruction)
                         st.session_state.original_code_refactor = data.get("original_code")
                         st.session_state.refactored_code_refactor = data.get("refactored_code")
                         st.session_state.refactor_explanation = data.get("explanation")

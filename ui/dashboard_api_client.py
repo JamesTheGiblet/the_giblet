@@ -1,21 +1,28 @@
 # ui/dashboard_api_client.py
+# ui/dashboard_api_client.py
+
+from typing import Dict, List, Optional
 import httpx
-from typing import Any, Dict, List, Optional, Union
 
 class GibletAPIClient:
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
-        self.client = httpx.Client(base_url=base_url)
+        self.client = httpx.Client(base_url=self.base_url, timeout=30.0)
 
-    def _request(self, method: str, path: str, json: Optional[Dict] = None, params: Optional[Dict] = None, timeout: int = 60) -> Dict:
+    def _request(self, method: str, endpoint: str, **kwargs):
         try:
-            response = self.client.request(method, path, json=json, params=params, timeout=timeout)
+            response = self.client.request(method, endpoint, **kwargs)
             response.raise_for_status()
             return response.json()
-        except httpx.RequestError as exc:
-            raise Exception(f"API Request Failed for {path}: {exc}") from exc
-        except httpx.HTTPStatusError as exc:
-            raise Exception(f"API returned error {exc.response.status_code} for {path}: {exc.response.text}") from exc
+        except httpx.RequestError as e:
+            # Handle connection errors, timeouts, etc.
+            raise Exception(f"API request failed: Could not connect to {e.request.url}.") from e
+        except httpx.HTTPStatusError as e:
+            # Handle 4xx/5xx responses
+            raise Exception(f"API returned an error: {e.response.status_code} - {e.response.text}") from e
+        except Exception as e:
+            # Handle other potential errors like JSON decoding
+            raise Exception(f"An unexpected error occurred in API client: {e}") from e
 
     # --- Ideas & Genesis ---
     def get_random_weird_idea(self) -> Dict:
@@ -86,3 +93,8 @@ class GibletAPIClient:
     # --- Style Preferences ---
     def set_style_preferences(self, category: str, settings: Dict) -> Dict:
         return self._request("POST", "/style/set_preferences", json={"category": category, "settings": settings}, timeout=10)
+
+    # ---   Profile   ---
+    def get_user_profile(self) -> Dict:
+        """Fetches the user profile data from the /profile endpoint."""
+        return self._request("GET", "/profile")

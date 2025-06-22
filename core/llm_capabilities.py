@@ -15,8 +15,8 @@ class LLMCapabilities:
     def __init__(self, provider: Optional[LLMProvider] = None, user_profile: Optional[UserProfile] = None):
         self.provider = provider
         self.user_profile = user_profile
-        self.model_name = provider.model_name if provider else "unknown"
-        self.provider_name = provider.PROVIDER_NAME if provider else "unknown"
+        self.model_name = provider.model_name if provider and hasattr(provider, 'model_name') else "unknown"
+        self.provider_name = provider.PROVIDER_NAME if provider and hasattr(provider, 'PROVIDER_NAME') else "unknown"
         self._capabilities: Dict[str, Any] = {}
         # self.memory = Memory()  # If you decide to store gauntlet results in memory
         self._load_capabilities()
@@ -115,8 +115,15 @@ class LLMCapabilities:
             if not self.provider or not hasattr(self.provider, 'base_url') or not self.provider.base_url:
                 return fetched_caps # Cannot proceed without base_url for OllamaProvider
             client = httpx.Client(base_url=self.provider.base_url)
-            response = client.post("/api/show", json={"name": self.model_name}, timeout=10)
-            response.raise_for_status()
+            
+            response = client.post("/api/show", json={"name": self.model_name}, timeout=10) # Attempt the request
+            
+            # Explicitly check if the response is an httpx.Response object
+            if not isinstance(response, httpx.Response):
+                print(f"❌ Unexpected response type from Ollama API: Expected httpx.Response, got {type(response)}. Cannot fetch metadata.")
+                return fetched_caps
+
+            response.raise_for_status() # This will raise httpx.HTTPStatusError for 4xx/5xx responses
             data = response.json()
             
             # Ollama's /api/show provides details in 'parameters' string, needs parsing
@@ -131,23 +138,35 @@ class LLMCapabilities:
                             break
                         except (ValueError, IndexError):
                             pass # Could not parse n_ctx
-            # print(f"✅ Fetched Ollama metadata for {self.model_name}: {fetched_caps}") # Can be noisy
+            print(f"✅ Fetched Ollama metadata for {self.model_name}: {fetched_caps}") # Can be noisy
+        except httpx.RequestError as e:
+            print(f"⚠️ Could not connect to Ollama server at {self.provider.base_url}: {e}")
+        except httpx.HTTPStatusError as e:
+            print(f"⚠️ Ollama API returned an error status {e.response.status_code}: {e.response.text}")
+        except json.JSONDecodeError:
+            print(f"⚠️ Ollama API returned non-JSON response.")
         except Exception as e:
             print(f"⚠️ Could not fetch Ollama metadata for {self.model_name}: {e}")
         return fetched_caps
+
     def get(self, capability_name: str, default: Any = None) -> Any:
+        """Gets a capability value from the loaded map."""
         return self._capabilities.get(capability_name, default)
 
     @property
     def context_window(self) -> int:
-        return self.get("context_window_tokens", 4096)
+        """Returns the context window in tokens."""
+        # This now relies on the default set in _load_capabilities
+        return self.get("context_window_tokens")
 
     @property
     def supports_function_calling(self) -> bool:
-        return self.get("supports_function_calling", False)
+        """Returns True if the model supports function calling."""
+        return self.get("supports_function_calling")
 
     @property
     def max_output_tokens(self) -> int:
-        return self.get("max_output_tokens", 1024)
+        """Returns the maximum number of output tokens."""
+        return self.get("max_output_tokens")
 
     # Add more properties for commonly accessed capabilities
