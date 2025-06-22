@@ -15,6 +15,7 @@ from ui.dashboard_api_client import GibletAPIClient
 from ui.dashboard_utils import format_code_diff
 from ui.session_state_manager import initialize_session_state
 from ui import home_page # Import the new home_page module
+from core.idea_generator import get_random_weird_idea # Import the new local function
 from ui.dashboard_components import render_sidebar_navigation
 
 
@@ -80,9 +81,8 @@ def main():
                 if st.button("🎲 Surprise Me!", use_container_width=True, help="Generate a random, weird project idea to start with.", key="surprise_me_btn"):
                     with st.spinner("Summoning a strange idea..."):
                         try:
-                            # Use the dedicated API endpoint for generating a random idea.
-                            data_random_idea = api_client.get_random_weird_idea()
-                            random_idea = data_random_idea.get("idea")
+                            # Use the new local function to generate an idea, bypassing the API.
+                            random_idea = get_random_weird_idea()
                             
                             if random_idea:
                                 # Start the genesis session with the random idea
@@ -158,6 +158,9 @@ def main():
             with col1:
                 if 'generated_readme' not in st.session_state:
                     st.session_state.generated_readme = None
+                # Initialize last_readme_settings here if it's not already
+                if 'last_readme_settings' not in st.session_state:
+                    st.session_state.last_readme_settings = None
 
                 if st.button("Generate Project README", key="generate_project_readme_btn", use_container_width=True):
                     with st.spinner("Generating style-aware README..."):
@@ -176,6 +179,10 @@ def main():
                         try: # The API client returns a dictionary directly
                             response = api_client.generate_roadmap(st.session_state.genesis_final_brief)
                             st.session_state.generated_roadmap = response.get("roadmap_content")
+                            # Store the current 'readme' style settings for potential saving
+                            all_style_prefs = api_client.get_style_preferences()
+                            st.session_state.last_readme_settings = all_style_prefs.get("readme", {})
+
                         except Exception as e:
                             st.error(f"Failed to generate roadmap: {e}")
 
@@ -527,8 +534,36 @@ def main():
                 business_name = st.text_input("Business Name", value=profile_data.get('business_name', ''), help="The name of your company or project.")
                 
                 st.markdown("##### Project Settings")
-                project_root = st.text_input("Project Root Directory", value=profile_data.get('project_root', '.'), help="The root directory for file operations on the server.")
+                
+                # --- New Project Root Selection ---
+                current_project_root = profile_data.get('project_root', '.')
+                
+                # Fetch directories from the API to populate the selectbox
+                try:
+                    dir_response = api_client.list_local_directories(path=".") # List dirs at root
+                    # Ensure '.' is always an option and comes first.
+                    available_dirs = ["."] + sorted([d for d in dir_response.get("directories", []) if d != "."])
+                except Exception as e:
+                    st.warning(f"Could not fetch project directories: {e}")
+                    available_dirs = ["."]
 
+                # If the currently saved path isn't in the list, add it.
+                if current_project_root not in available_dirs:
+                    available_dirs.append(current_project_root)
+
+                try:
+                    current_index = available_dirs.index(current_project_root)
+                except ValueError:
+                    current_index = 0 # Default to '.'
+
+                # Let user select from a list of discovered directories
+                selected_dir = st.selectbox(
+                    "Select Project Root or Enter a Custom Path Below",
+                    options=available_dirs,
+                    index=current_index,
+                    help="Select a directory from the list. You can also type a custom relative path in the text box."
+                )
+                project_root = st.text_input("Project Root Directory", value=selected_dir, help="The root directory for file operations on the server. Overrides selection above if changed.")
                 st.divider()
 
                 st.markdown("##### AI Behavior")
@@ -645,7 +680,7 @@ def main():
         style_data = {}
         try:
             # Use the API client to read the style preferences
-            file_content_response = api_client.read_file("data/style_preference.json")
+            file_content_response = api_client.get_style_preferences() # Use new API method
             if "content" in file_content_response:
                 loaded_data = json.loads(file_content_response["content"])
                 if isinstance(loaded_data, dict):
