@@ -74,8 +74,8 @@ class MiniReadmeGenerator:
         """
         self.logger.info(f"Starting mini README generation for: {file_path_str}")
         
-        # We need to construct the full path relative to the project root
-        file_path = Path(utils.WORKSPACE_DIR) / file_path_str
+        # safe_path in utils will handle resolving to the correct project root
+        file_path = utils.safe_path(file_path_str)
         
         if not file_path.exists():
             self.logger.error(f"File not found: {file_path}")

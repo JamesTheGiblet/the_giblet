@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 import copy # For deepcopy
 import logging
+from core.giblet_config import giblet_config # Import giblet_config
 from . import utils # Import utils
 
 logger = logging.getLogger(__name__)
@@ -47,13 +48,9 @@ class StylePreferenceManager:
     """
 
     def __init__(self, file_path: Optional[Path] = None):
-        """
-        Initializes the StylePreferenceManager.
-
-        Args:
-            file_path: Optional path to the preferences JSON file.
-                       If None, uses a default path within the project's data directory.
-        """
+        """Initializes the StylePreferenceManager."""
+        # Use giblet_config to determine the file path
+        # The file_path parameter is now primarily for testing or explicit override.
         if file_path is None:
             # Assuming this file is in core/, so ../data/
             base_dir = Path(__file__).resolve().parent.parent
@@ -197,8 +194,8 @@ class StylePreferenceManager:
         
         self._save_preferences()
         logger.info(f"Style preferences for category '{category}' updated.")
-        
-    def write_file_with_style(self, filepath: Path, content: str, style_category: str, project_root: Path) -> bool:
+
+    def write_file_with_style(self, filepath: Path, content: str, style_category: str) -> bool:
         """
         Applies style preferences for a given category and writes content to a file.
 
@@ -206,7 +203,6 @@ class StylePreferenceManager:
             filepath: The full path where the file should be written.
             content: The raw content to write.
             style_category: The category of style preferences to apply (e.g., "readme", "roadmap", "configuration").
-            project_root: The root path of the project for safety checks.
 
         Returns:
             True if the file was written successfully, False otherwise.
@@ -226,7 +222,7 @@ class StylePreferenceManager:
              styled_content = f"# Style Tone: {general_tone}\n" + styled_content
 
         # --- Use utils.write_file for the actual writing and safety check ---
-        return utils.write_file(str(filepath), styled_content, project_root=project_root)
+        return utils.write_file(str(filepath), styled_content)
     
 # Example Usage (for testing purposes)
 if __name__ == "__main__":

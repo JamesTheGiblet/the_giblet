@@ -1,3 +1,3 @@
-2025-06-23 10:25:05,599 - core.llm_providers - INFO - [LLM] Initializing Gemini with model: gemini-1.5-flash-latest
-2025-06-23 10:25:06,261 - core.llm_providers - INFO - [LLM] Gemini provider initialized successfully.
-2025-06-23 10:25:06,925 - core.idea_interpreter - INFO - Idea Interpreter initialized.
+2025-06-23 13:02:31,856 - core.llm_providers - INFO - [LLM] Initializing Gemini with model: gemini-1.5-flash-latest
+2025-06-23 13:02:32,321 - core.llm_providers - INFO - [LLM] Gemini provider initialized successfully.
+2025-06-23 13:02:32,953 - core.idea_interpreter - INFO - Idea Interpreter initialized.

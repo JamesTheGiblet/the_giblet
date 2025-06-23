@@ -1,5 +1,4 @@
-# core/readme_generator.py
-
+# readme_generator.py
 import logging
 from typing import Dict, Any
 
@@ -23,7 +22,7 @@ class ReadmeGenerator:
         self.style_manager = style_manager
         self.logger = logging.getLogger(__name__)
 
-    def _create_prompt(self, project_brief: Dict[str, Any]) -> str:
+    def _create_prompt(self, project_brief: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
         """
         Creates the prompt for the LLM to generate the README.md.
         """
@@ -32,7 +31,7 @@ class ReadmeGenerator:
         # Extract style preferences for the prompt
         readme_style = style_prefs.get("readme", {}).get("default_style", "standard")
         readme_tone = style_prefs.get("readme", {}).get("default_tone", "professional")
-        readme_sections = style_prefs.get("readme", {}).get("default_sections", ["Overview", "Features", "Getting Started"])
+        readme_sections = style_prefs.get("readme", {}).get("default_sections", ["Overview", "Features", "Getting Started", "Roadmap Link", "Contributing"])
         
         # Convert the project brief and sections list into a string for the prompt
         # Store the specific preferences used for this generation

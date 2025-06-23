@@ -1,5 +1,6 @@
 import os
 import logging
+from core.giblet_config import giblet_config # Import giblet_config
 from typing import Dict, Any
 
 class ProjectFileManager:
@@ -21,7 +22,7 @@ class ProjectFileManager:
         Returns:
             The full path to the created project directory.
         """
-        project_path = os.path.join(base_path, project_name.replace(" ", "_").lower())
+        project_path = os.path.join(giblet_config.get_project_root(), project_name.replace(" ", "_").lower())
         try:
             os.makedirs(project_path, exist_ok=True)
             self.logger.info(f"Created project directory: {project_path}")

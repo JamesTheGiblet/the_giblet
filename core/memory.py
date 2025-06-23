@@ -3,15 +3,16 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
+from core.giblet_config import giblet_config # Import giblet_config singleton
 
 try:
     import redis
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
-
+# This is a singleton, so it's initialized once.
 class Memory:
-    def __init__(self, file_path: Optional[Path] = None, checkpoint_directory: Optional[Path] = None):
+    def __init__(self): # Removed file_path and checkpoint_directory parameters
         """
         Initializes the Memory module, connecting to Redis if configured,
         otherwise falling back to local JSON files.
@@ -19,8 +20,8 @@ class Memory:
         self.backend_type = os.getenv("GIBLET_MEMORY_BACKEND", "json").lower()
         
         # Store provided paths or fall back to defaults
-        self._long_term_memory_file_path = file_path
-        self._checkpoint_directory = checkpoint_directory
+        self.long_term_memory_path = Path(giblet_config.get_file_path("data/memory.json"))
+        self._checkpoint_directory = Path(giblet_config.get_file_path("data/checkpoints"))
         self.redis_client = None
 
         # --- Session Memory (volatile) ---
@@ -41,9 +42,8 @@ class Memory:
                 self.backend_type = "json"
 
         if self.backend_type == "json":
-            if self._long_term_memory_file_path is None:
-                self._long_term_memory_file_path = Path(__file__).parent.parent / "data/memory.json"
-            self.long_term_memory_path = self._long_term_memory_file_path
+            # Ensure the directory for JSON files exists
+            self.long_term_memory_path.parent.mkdir(parents=True, exist_ok=True)
             self.long_term_memory_path.touch(exist_ok=True)
             print("[MEM] Memory module initialized with local JSON backend.")
 

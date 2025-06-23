@@ -16,7 +16,7 @@ import sys
 sys.path.append(str(Path(__file__).resolve().parent))
 
 # --- Import Core Modules ---
-from core import user_profile as core_user_profile
+from core.giblet_config import giblet_config # Import the giblet_config singleton
 from core.idea_synth import IdeaSynthesizer
 from core.roadmap_manager import RoadmapManager
 from core.idea_interpreter import IdeaInterpreter
@@ -46,10 +46,17 @@ app = FastAPI(
     description="API for interacting with The Giblet's core services.",
     version="0.1.0"
 )
+load_dotenv() # Load environment variables from .env file
+
+# Ensure giblet_config is initialized for the API server's context
+# If the API server is run directly (e.g., uvicorn api:app), main.py's arg parsing won't happen.
+# In that case, giblet_config will default to the_giblet/ (parent of core/).
+# If run via main.py, it will already be set.
+giblet_config.get_project_root() # This call ensures default initialization if not already set
+
 memory = Memory()
 style_manager_for_api = StylePreferenceManager()
-load_dotenv() # Load environment variables from .env file
-roadmap_manager = RoadmapManager(memory_system=memory, style_preference_manager=style_manager_for_api)
+roadmap_manager = RoadmapManager() # RoadmapManager now uses giblet_config internally
 user_profile_instance = UserProfile(memory_system=memory)
 command_manager_for_api = command_manager.CommandManager(memory_system=memory)
 modularity_guardrails = ModularityGuardrails()
@@ -67,11 +74,11 @@ def get_configured_llm_provider(profile: UserProfile) -> LLMProvider | None:
         try:
             provider_configs = json.loads(raw_provider_configs)
         except json.JSONDecodeError:
-            logger.warning(f"Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}")
-            provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
+            logger.warning(f"Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}") # Use DEFAULT_PROFILE_STRUCTURE from UserProfile
+            provider_configs = DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
     else:
         logger.warning(f"'providers' config in profile is not a valid dictionary. Using defaults. Value was: {raw_provider_configs}")
-        provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
+        provider_configs = DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
 
     if active_provider_name == "gemini":
         gemini_config = provider_configs.get("gemini", {})
@@ -89,6 +96,8 @@ def get_configured_llm_provider(profile: UserProfile) -> LLMProvider | None:
         logger.warning(f"Unknown LLM provider '{active_provider_name}' configured in profile. Defaulting to Gemini.")
         return GeminiProvider()
 
+# Import DEFAULT_PROFILE_STRUCTURE from UserProfile
+from core.user_profile import DEFAULT_PROFILE_STRUCTURE
 api_llm_provider = get_configured_llm_provider(user_profile_instance)
 
 if not api_llm_provider or not api_llm_provider.is_available():
@@ -109,7 +118,7 @@ project_scaffolder_api = ProjectScaffolder(
     roadmap_generator=roadmap_generator_api,
     style_manager=style_manager_for_api
 )
-project_contextualizer_api = ProjectContextualizer(memory_system=memory, project_root=".")
+project_contextualizer_api = ProjectContextualizer(memory_system=memory, project_root=giblet_config.get_project_root())
 idea_synth_for_api = IdeaSynthesizer(
     user_profile=user_profile_instance,
     memory_system=memory,
@@ -287,7 +296,7 @@ def scaffold_local_project_endpoint(request: ScaffoldLocalRequest):
     project_path = project_scaffolder_api.scaffold_local(
         project_name=request.project_name,
         project_brief=request.project_brief,
-        base_path=Path.cwd()
+        base_path=Path(giblet_config.get_project_root()) # Use giblet_config for base_path
     )
     if project_path:
         return ScaffoldResponse(success=True, message="Local project scaffolded successfully.", path=str(project_path))
@@ -360,7 +369,9 @@ def write_file_endpoint(request: WriteFileRequest):
     if not success:
         raise HTTPException(status_code=500, detail=f"Failed to write to file: {request.filepath}")
     try:
-        exceeds, line_count = modularity_guardrails.check_file_length(request.filepath)
+        # Pass the full path to check_file_length
+        full_file_path = Path(giblet_config.get_project_root()) / request.filepath
+        exceeds, line_count = modularity_guardrails.check_file_length(str(full_file_path))
         warnings = memory.recall('modularity_warnings')
         if not isinstance(warnings, dict):
             warnings = {}
@@ -596,7 +607,9 @@ def agent_execute_plan_endpoint():
                 file_to_test = memory.recall('last_file_written')
                 if not file_to_test and len(cmd_args) > 0:
                     for arg_path in cmd_args:
-                        if Path(arg_path).is_file() and arg_path.endswith(".py"):
+                        # Use giblet_config to resolve the path for checking if it's a file
+                        full_arg_path = Path(giblet_config.get_project_root()) / arg_path
+                        if full_arg_path.is_file() and arg_path.endswith(".py"):
                             file_to_test = arg_path
                             break
                 if file_to_test:

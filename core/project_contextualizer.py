@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from core.giblet_config import giblet_config # Import giblet_config
 from .git_analyzer import GitAnalyzer
 from .memory import Memory
 from . import utils # Assuming utils.py is in the same directory (core)
@@ -14,12 +15,12 @@ class ProjectContextualizer:
     """
 
     def __init__(self, memory_system: Memory, project_root: str = "."):
-        """
-        Initializes the ProjectContextualizer.
+        """Initializes the ProjectContextualizer.
 
         Args:
             memory_system: An instance of the Memory system to recall focus.
             project_root: The root directory of the project to analyze.
+                          Defaults to the globally configured project root.
         """
         self.memory = memory_system
         self.project_root = Path(project_root).resolve()
@@ -116,7 +117,7 @@ if __name__ == '__main__':
     # Adjust path to go up one level if this file is in core/
     project_root_path = Path(__file__).parent.parent 
     
-    mem = Memory() # This might need adjustment based on your Memory implementation
+    mem = Memory() # Memory now uses giblet_config internally
     mem.remember("current_focus", "Refactoring the API authentication module.")
     
     contextualizer = ProjectContextualizer(memory_system=mem, project_root=str(project_root_path))

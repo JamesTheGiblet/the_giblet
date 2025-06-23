@@ -3,6 +3,7 @@ from core.memory import Memory
 from pathlib import Path # Make sure this is imported
 from datetime import datetime # Import datetime
 from typing import Optional # Ensure Optional is imported
+from core.giblet_config import giblet_config # Import giblet_config singleton
 
 PROFILE_MEMORY_KEY = "user_profile_data_v1" # Added a version to the key
 
@@ -37,18 +38,14 @@ DEFAULT_PROFILE_STRUCTURE = {
 }
 
 class UserProfile:
-    def __init__(self, memory_system: Memory, file_path: Optional[Path] = None):
+    def __init__(self, memory_system: Memory): # Removed file_path parameter
         """
-        Initializes the UserProfile, loading data from the memory system.
-        Optionally, a specific file_path can be associated with this profile instance.
+        Initializes the UserProfile, loading data from the memory system,
+        and setting up file paths using giblet_config.
         """
         self.memory = memory_system
-        
-        if file_path:
-            self.file_path = file_path
-        else:
-            # Default path if no specific file_path is provided for this instance
-            self.file_path = Path(__file__).parent.parent / "data" / "user_profile.json"
+        # Use giblet_config to determine the file path for the user profile if it were to be directly read/written
+        self.file_path = Path(giblet_config.get_file_path("data/user_profile.json"))
 
         retrieved_data = self.memory.retrieve(PROFILE_MEMORY_KEY)
         # Check if the retrieved data is not a dictionary (e.g., it's the default "not found" string)
