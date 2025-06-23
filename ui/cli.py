@@ -131,7 +131,9 @@ def start_cli_loop():
         user_profile=user_profile,
         memory=memory,
         style_manager=style_manager_for_cli,
-        project_contextualizer=project_contextualizer_cli
+        project_contextualizer=project_contextualizer_cli,
+        readme_generator=readme_generator_cli,
+        roadmap_generator=roadmap_generator_cli
     )
     proactive_learner_instance = ProactiveLearner(user_profile=user_profile) if ProactiveLearner is not None else None
     skill_manager = SkillManager(user_profile=user_profile, memory=memory, command_manager_instance=command_manager)

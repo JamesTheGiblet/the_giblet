@@ -82,6 +82,24 @@ def execute_command(command: str) -> tuple[int, str, str]:
 
 logger = logging.getLogger(__name__)
 
+def sanitize_filename(name: str) -> str:
+    """
+    Sanitizes a string to be a valid filename.
+    - Converts to lowercase.
+    - Replaces spaces and underscores with hyphens.
+    - Removes all other non-alphanumeric characters (except hyphens).
+    - Removes leading/trailing hyphens.
+    """
+    # Convert to lowercase and replace spaces/underscores
+    s = name.lower().replace(' ', '-').replace('_', '-')
+    # Remove all invalid characters
+    s = re.sub(r'[^a-z0-9-]', '', s)
+    # Remove consecutive hyphens
+    s = re.sub(r'--+', '-', s)
+    # Remove leading/trailing hyphens
+    s = s.strip('-')
+    return s
+
 def sanitize_directory_name(name: str) -> str:
     """
     Sanitizes a string to be suitable for a directory name.
@@ -92,5 +110,5 @@ def sanitize_directory_name(name: str) -> str:
     name = name.lower()
     name = re.sub(r'[\s-]+', '_', name)  # Replace spaces and hyphens with underscores
     name = re.sub(r'[^\w_]', '', name)    # Remove non-alphanumeric characters (excluding underscore)
-    name = re.sub(r'_+', '_', name)       # Replace multiple underscores with a single one
+    name = re.sub(r'_+', '_', name)      # Replace multiple underscores with a single one
     return name.strip('_')

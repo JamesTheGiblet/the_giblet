@@ -27,7 +27,7 @@ class ReadmeGenerator:
         """
         Creates the prompt for the LLM to generate the README.md.
         """
-        style_prefs = self.style_manager.get_all_preferences() # Use get_all_preferences()
+        style_prefs = self.style_manager.get_all_preferences()
         
         # Extract style preferences for the prompt
         readme_style = style_prefs.get("readme", {}).get("default_style", "standard")
@@ -35,6 +35,12 @@ class ReadmeGenerator:
         readme_sections = style_prefs.get("readme", {}).get("default_sections", ["Overview", "Features", "Getting Started"])
         
         # Convert the project brief and sections list into a string for the prompt
+        # Store the specific preferences used for this generation
+        used_style_preferences = {
+            "default_style": readme_style,
+            "default_tone": readme_tone,
+            "default_sections": readme_sections
+        }
         brief_str = "\n".join([f"- {key}: {value}" for key, value in project_brief.items()])
         sections_str = ", ".join(readme_sections)
 
@@ -54,11 +60,11 @@ class ReadmeGenerator:
             f"- If the brief lacks information for a required section, create a sensible placeholder (e.g., 'Installation instructions will be added soon.').\n\n"
             f"Output *only* the raw Markdown for the complete README.md file. Do not include any other text, comments, or explanations before or after the Markdown content."
         )
-        return prompt
+        return prompt, used_style_preferences # Return both
 
-    def generate(self, project_brief: Dict[str, Any]) -> str:
+    def generate(self, project_brief: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
         """
-        Generates the full README.md content.
+            A tuple: (generated_readme_content_as_string, used_style_preferences_dict).
 
         Args:
             project_brief: A dictionary containing the structured project brief
@@ -71,10 +77,10 @@ class ReadmeGenerator:
         
         if not self.llm_provider or not self.llm_provider.is_available():
             self.logger.error("Cannot generate README: LLM provider is not available.")
-            return "# README Generation Failed\n\nCould not connect to the LLM provider."
+            return "# README Generation Failed\n\nCould not connect to the LLM provider.", {}
 
         try:
-            prompt = self._create_prompt(project_brief)
+            prompt, used_style_preferences = self._create_prompt(project_brief) # Capture both return values
             
             readme_content = self.llm_provider.generate_text(
                 prompt=prompt,
@@ -82,8 +88,8 @@ class ReadmeGenerator:
             )
             
             self.logger.info("Successfully generated README content.")
-            return readme_content
+            return readme_content, used_style_preferences # Return both
 
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during README generation: {e}")
-            return f"# README Generation Error\n\nAn unexpected error occurred: {e}"
+            return f"# README Generation Error\n\nAn unexpected error occurred: {e}", {}

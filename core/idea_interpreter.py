@@ -1,10 +1,13 @@
-# idea_interpreter.py
+# core/idea_interpreter.py
 import logging
-from typing import Dict, Any, List, Optional # Import Optional
+from typing import Dict, Any, List, Optional
 
 from .llm_provider_base import LLMProvider
 from .user_profile import UserProfile
 from .memory import Memory
+from .readme_generator import ReadmeGenerator # Import new generator
+from .roadmap_generator import RoadmapGenerator # Import new generator
+
 from .style_preference import StylePreferenceManager
 from .project_contextualizer import ProjectContextualizer
 # Removed GenesisLogger import for standard logging
@@ -20,7 +23,9 @@ class IdeaInterpreter:
                  user_profile: UserProfile,
                  memory: Memory,
                  style_manager: StylePreferenceManager,
-                 project_contextualizer: ProjectContextualizer):
+                 project_contextualizer: ProjectContextualizer,
+                 readme_generator: ReadmeGenerator, # Inject ReadmeGenerator
+                 roadmap_generator: RoadmapGenerator): # Inject RoadmapGenerator
         """
         Initializes the IdeaInterpreter.
 
@@ -30,6 +35,8 @@ class IdeaInterpreter:
             memory: The memory system for storing conversation state if needed.
             style_manager: The manager for applying the user's preferred style.
             project_contextualizer: Provides context about the current project.
+            readme_generator: The ReadmeGenerator instance.
+            roadmap_generator: The RoadmapGenerator instance.
         """
         self.llm_provider = llm_provider
         self.user_profile = user_profile
@@ -40,6 +47,8 @@ class IdeaInterpreter:
         self.conversation_history: List[Dict[str, str]] = []
         self.is_interpreting: bool = False
         self.current_brief: Optional[Dict[str, Any]] = None
+        self.readme_generator = readme_generator
+        self.roadmap_generator = roadmap_generator
         self.logger.info("Idea Interpreter initialized.")
 
     def _initial_prompt(self, idea: str) -> str:
@@ -105,6 +114,13 @@ class IdeaInterpreter:
             self.is_interpreting = False
             return None
 
+    def start_interview(self, initial_idea: str) -> Optional[str]:
+        """
+        Alias for start_interpretation_session to maintain compatibility with older calls.
+        """
+        self.logger.warning("Deprecated: 'start_interview' method called. Use 'start_interpretation_session' instead.")
+        return self.start_interpretation_session(initial_idea)
+
     def submit_answer_and_continue(self, user_answer: str) -> Dict[str, Any]:
         """
         Processes the user's answer and decides the next step (more questions or synthesize).
@@ -125,17 +141,27 @@ class IdeaInterpreter:
         self.logger.info(f"User answered: {user_answer[:100]}...")
 
         # --- Simplified Logic: Synthesize after the first user answer ---
-        # In a more advanced version, this section would involve:
-        # 1. Constructing a follow-up prompt including all self.conversation_history.
-        # 2. Sending it to the LLM.
-        # 3. The LLM would either ask more questions or indicate it's ready to synthesize.
-        # 4. Based on LLM's response, return new questions or proceed to _synthesize_brief().
+        # In a real application, you'd have more complex logic here to decide
+        # if more questions are needed or if it's time to synthesize.
+        # For this example, we'll proceed directly to synthesis after one answer.
 
         self.logger.info("Proceeding to synthesize brief after one round of Q&A (simplified flow).")
         final_brief_data = self._synthesize_brief()
         if "error" in final_brief_data:
             self.is_interpreting = False # End session on error
             return {"status": "error", "message": final_brief_data["error"]}
+
+        # Generate README and Roadmap after brief is synthesized
+        # Capture both the content and the style preferences used for the README
+        readme_content, readme_style_used = self.readme_generator.generate(final_brief_data)
+        roadmap_content = self.roadmap_generator.generate(final_brief_data)
+
+        # Store generated content in the brief for later access or display
+        final_brief_data["generated_readme"] = readme_content
+        final_brief_data["generated_readme_style_used"] = readme_style_used # Store the style used
+        final_brief_data["generated_roadmap"] = roadmap_content
+
+        # TODO: Integrate ProjectFileManager here to save files to disk
 
         self.current_brief = final_brief_data
         self.is_interpreting = False
@@ -172,7 +198,7 @@ class IdeaInterpreter:
             # Here, you might want to parse synthesized_output_str if you expect JSON
             # For now, we'll assume it's a text blob that we can put into the brief.
         except Exception as e:
-            self.logger.error(f"Error during LLM call in _synthesize_brief: {e}")
+            self.logger.error(f"An unexpected error occurred during brief synthesis: {e}")
             return {"error": f"LLM communication failed during synthesis: {e}"}
 
         # For this skeleton, we'll return a dummy structure.
