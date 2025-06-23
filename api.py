@@ -7,6 +7,7 @@ from typing import Dict, Optional, Any
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 import shlex
+import logging
 from pathlib import Path
 import sys
 
@@ -35,6 +36,9 @@ from core.modularity_guardrails import ModularityGuardrails
 from core.style_preference import StylePreferenceManager
 from core.idea_generator import get_random_weird_idea # <-- IMPORT NEW MODULE
 
+# --- Setup Logger ---
+logger = logging.getLogger(__name__)
+
 # --- Initialize FastAPI and Core Modules ---
 app = FastAPI(
     title="The Giblet API",
@@ -61,37 +65,37 @@ def get_configured_llm_provider(profile: UserProfile) -> LLMProvider | None:
         try:
             provider_configs = json.loads(raw_provider_configs)
         except json.JSONDecodeError:
-            print(f"⚠️ API: Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}")
+            logger.warning(f"Could not parse 'providers' config string from profile. Using defaults. String was: {raw_provider_configs}")
             provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
     else:
-        print(f"⚠️ API: 'providers' config in profile is not a valid dictionary. Using defaults. Value was: {raw_provider_configs}")
+        logger.warning(f"'providers' config in profile is not a valid dictionary. Using defaults. Value was: {raw_provider_configs}")
         provider_configs = core_user_profile.DEFAULT_PROFILE_STRUCTURE["llm_provider_config"]["providers"]
 
     if active_provider_name == "gemini":
         gemini_config = provider_configs.get("gemini", {})
         api_key = gemini_config.get("api_key")
         model_name = gemini_config.get("model_name", "gemini-1.5-flash-latest")
-        print(f"API: Configuring GeminiProvider (model: {model_name}, API key from profile: {'yes' if api_key else 'no/use .env'})")
+        logger.info(f"Configuring GeminiProvider (model: {model_name}, API key from profile: {'yes' if api_key else 'no/use .env'})")
         return GeminiProvider(model_name=model_name, api_key=api_key if api_key else None)
     elif active_provider_name == "ollama":
         ollama_config = provider_configs.get("ollama", {})
         base_url = ollama_config.get("base_url", "http://localhost:11434")
         model_name = ollama_config.get("model_name", "mistral")
-        print(f"API: Configuring OllamaProvider (model: {model_name}, url: {base_url})")
+        logger.info(f"Configuring OllamaProvider (model: {model_name}, url: {base_url})")
         return OllamaProvider(model_name=model_name, base_url=base_url)
     else:
-        print(f"⚠️ API: Unknown LLM provider '{active_provider_name}' configured in profile. Defaulting to Gemini.")
+        logger.warning(f"Unknown LLM provider '{active_provider_name}' configured in profile. Defaulting to Gemini.")
         return GeminiProvider()
 
 api_llm_provider = get_configured_llm_provider(user_profile_instance)
 
 if not api_llm_provider or not api_llm_provider.is_available():
-    print(f"⚠️ API: Configured LLM provider ({api_llm_provider.PROVIDER_NAME if api_llm_provider else 'N/A'}) is not available. Operations requiring LLM will be affected.")
+    logger.warning(f"Configured LLM provider ({api_llm_provider.PROVIDER_NAME if api_llm_provider else 'N/A'}) is not available. Operations requiring LLM will be affected.")
     if not (api_llm_provider and api_llm_provider.is_available()):
-        print("⚠️ API: Attempting fallback to Gemini (default) due to primary provider unavailability.")
+        logger.warning("Attempting fallback to Gemini (default) due to primary provider unavailability.")
         api_llm_provider = GeminiProvider()
         if not api_llm_provider.is_available():
-            print("⚠️ API: Fallback Gemini provider also not available. LLM features will be severely limited.")
+            logger.warning("Fallback Gemini provider also not available. LLM features will be severely limited.")
             api_llm_provider = None
 
 # --- Initialize Core Module Instances ---
@@ -231,6 +235,12 @@ class StyleUpdateResponse(BaseModel):
     message: str
     updated_preferences: dict[str, Any]
 
+class StylePreferencesResponse(BaseModel):
+    preferences: dict[str, Any]
+
+class DirectoryListResponse(BaseModel):
+    directories: list[str]
+
 class RandomIdeaResponse(BaseModel):
     idea: str
 
@@ -295,6 +305,23 @@ def create_github_repo_endpoint(request: CreateRepoRequest):
         return ScaffoldResponse(success=True, message=f"GitHub repository created: {result['html_url']}")
     else:
         raise HTTPException(status_code=500, detail="Failed to create GitHub repository.")
+
+@app.get("/project/directories", response_model=DirectoryListResponse)
+def list_directories_endpoint():
+    """
+    Lists all directories in the project root, ignoring common build/cache folders.
+    Note: This assumes a 'utils.list_directories()' function exists in 'core/utils.py'.
+    """
+    try:
+        # This function will need to be implemented in your utils module.
+        # It should scan the project root and return a list of directory paths.
+        directories = utils.list_directories()
+        return DirectoryListResponse(directories=directories)
+    except AttributeError:
+        raise HTTPException(status_code=501, detail="The function 'list_directories' is not implemented in the server's 'utils' module.")
+    except Exception as e:
+        logger.exception("Failed to list project directories.")
+        raise HTTPException(status_code=500, detail=f"An error occurred while listing directories: {e}")
 
 @app.post("/generate/function")
 def generate_function_endpoint(request: GenerationRequest):
@@ -480,7 +507,7 @@ def genesis_start_endpoint(request: GenesisStartRequest):
     except AttributeError:
         raise HTTPException(status_code=500, detail="The 'IdeaInterpreter' object in the current runtime does not have a 'start_interpretation_session' method. Please ensure the server is running the latest version of 'core/idea_interpreter.py'.")
     except Exception as e:
-        print(f"ERROR in /genesis/start: {e}")
+        logger.exception("An unexpected error occurred while starting the genesis interview.")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred while starting the genesis interview: {e}")
 
 @app.post("/genesis/answer", response_model=GenesisAnswerResponse)
@@ -492,6 +519,18 @@ def genesis_answer_endpoint(request: GenesisAnswerRequest):
         return GenesisAnswerResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing genesis answer: {e}")
+
+@app.get("/style/preferences", response_model=StylePreferencesResponse)
+def get_style_preferences_endpoint():
+    """
+    Retrieves all current style preferences.
+    """
+    try:
+        all_prefs = style_manager_for_api.get_all_preferences()
+        return StylePreferencesResponse(preferences=all_prefs)
+    except Exception as e:
+        logger.exception("Failed to retrieve style preferences.")
+        raise HTTPException(status_code=500, detail=f"An error occurred while fetching style preferences: {e}")
 
 @app.get("/modularity/warnings", response_model=ModularityWarningsResponse)
 def get_modularity_warnings():

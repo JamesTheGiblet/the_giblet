@@ -4,6 +4,7 @@ GitPython
 httpx
 langchain
 langchain-ollama
+ollama
 python-dotenv
 pytest
 redis
