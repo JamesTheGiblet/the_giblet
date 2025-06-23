@@ -1,4 +1,4 @@
-# core/sanity_checker.py
+# scripts/sanity_checker.py
 
 import git
 import re
