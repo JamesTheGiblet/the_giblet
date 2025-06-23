@@ -1,0 +1,4 @@
+# .pre-commit-config.yaml
+
+# Set default stages for hooks if not specified individually
+default_stages: [pre-commit]
