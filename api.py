@@ -7,6 +7,7 @@ from typing import Dict, Optional, Any
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 import shlex
+from dotenv import load_dotenv # Import load_dotenv
 import logging
 from pathlib import Path
 import sys
@@ -47,6 +48,7 @@ app = FastAPI(
 )
 memory = Memory()
 style_manager_for_api = StylePreferenceManager()
+load_dotenv() # Load environment variables from .env file
 roadmap_manager = RoadmapManager(memory_system=memory, style_preference_manager=style_manager_for_api)
 user_profile_instance = UserProfile(memory_system=memory)
 command_manager_for_api = command_manager.CommandManager(memory_system=memory)
